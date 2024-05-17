@@ -18,7 +18,7 @@
 # #1.1 Install & Load packages --------------------------------------------------------
 
 # some setup: a cheeky little bit of code to check and install packages
-need <- c("tidyverse","stargazer", "janitor", "here") # list packages needed
+need <- c("tidyverse","stargazer", "janitor", "here","readxl") # list packages needed
 have <- need %in% rownames(installed.packages()) # checks packages you have
 if(any(!have)) install.packages(need[!have]) # install missing packages
 invisible(lapply(need, library, character.only=T)) # load needed packages
@@ -38,21 +38,22 @@ matching_function <- function(matched_orbis, suppliers_data, country){
 
 
 # 2.  Load the data for suppliers and registered companies-------------------------------------------------------
-
-
+## Setting up the directories for the data
+data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 ### 2.1 Suppliers -------------------------------------------------
-
-
-suppliers_2016 <- read_excel("data_raw/21_10_27_Suppliers_cern_2016_nocontacts.xlsx")
+suppliers_2016_file <- "21_10_27_Suppliers_cern_2016_nocontacts.xlsx"
+suppliers_2021_file <- "2021-06-29 - CERN Orders 2014-2021_clean.xlsx"
+suppliers_2016 <- read_excel(paste0(data_raw_dir, suppliers_2016_file))
 suppliers_2016<- clean_names(suppliers_2016)
-suppliers_2021 <- read_excel("data_raw/2021-06-29 - CERN Orders 2014-2021_clean.xlsx")
+suppliers_2021 <- read_excel(paste0(data_raw_dir, suppliers_2021_file))
 suppliers_2021<- clean_names(suppliers_2021)
 
 
 ### 2.2 Registered firm (potential suppliers) ---------------------------
-
-potential_suppliers<- read_csv("data_raw/22_03_08_potential_suppliers_procurement.csv")
-
+potential_suppliers_file<- "22_03_08_potential_suppliers_procurement.csv"
+potential_suppliers<- read_csv(paste0(data_raw_dir, potential_suppliers_file))
+potential_suppliers<- clean_names(potential_suppliers)
 
 # 3. Data preparation
 
