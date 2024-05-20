@@ -60,15 +60,15 @@ potential_suppliers<- clean_names(potential_suppliers)
 
 ### 3.1 Suppliers ------------------------------------------------------------
 
-# I load the datasets for both periods - I should have dropped the duplicates
-
+# I combine the datasets for both periods
 
 suppliers_2016_selected_variables<- suppliers_2016 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 suppliers_2021_selected_variables<- suppliers_2021 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 all_suppliers_selected_variables<- rbind(suppliers_2016_selected_variables, suppliers_2021_selected_variables)
 all_suppliers_selected_variables$vat_number<- as.character(all_suppliers_selected_variables$vat_number)
-##### Selected countries --------------------------------------------------
-
+all_suppliers_selected_variables<- all_suppliers_selected_variables %>% distinct()
+##### Selected countries -------------------------------------------------
+## The reason I do this is that I then match then manually and I can only do it for a few countries
 selected_countries <- c("IT", "GB", "ES", "FR")
 suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(country %in% selected_countries)
 
@@ -87,20 +87,21 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
 
 #####  Write csv -----------------------------------------------------------
  #Italy
-  write.csv(suppliers_italy, here("data_proc", "suppliers_italy.csv"), row.names = FALSE)
+  
+  write.csv(suppliers_italy, (paste0("data_proc", "suppliers_italy.csv")), row.names = FALSE)
   
  #France
   suppliers_france_1<- suppliers_france[1:999,] # this is because I cannot load more than 1000 rows on Orbis
   suppliers_france_2<- suppliers_france[1000:nrow(suppliers_france),]
   
-  write.csv(suppliers_france_1,here("data_proc", "suppliers_france_1.csv"), row.names = FALSE)
-  write.csv(suppliers_france_2, here("data_proc" ,"suppliers_france_2.csv"), row.names = FALSE)
+  write.csv(suppliers_france_1,paste0("data_proc", "suppliers_france_1.csv"), row.names = FALSE)
+  write.csv(suppliers_france_2, paste0("data_proc" ,"suppliers_france_2.csv"), row.names = FALSE)
   
 #Spain
-  write.csv(suppliers_spain, here("data_proc", "suppliers_spain.csv"), row.names = FALSE)
+  write.csv(suppliers_spain, paste0("data_proc", "suppliers_spain.csv"), row.names = FALSE)
   
 # UK 
-  write.csv(suppliers_uk, here("data_proc", "suppliers_uk.csv"), row.names = FALSE)
+  write.csv(suppliers_uk, paste0("data_proc", "suppliers_uk.csv"), row.names = FALSE)
 
   
 
