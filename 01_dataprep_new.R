@@ -41,8 +41,8 @@ matching_function <- function(matched_orbis, suppliers_data, country){
 ## Setting up the directories for the data
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
-matched_orbis_suppliers_dir<- paste0(data_proc_dir, "Matched_orbis_suppliers")
-matched_potential_suppliers_dir <- paste0(data_proc_dir, "Matched_potential_suppliers")
+matched_orbis_suppliers_dir<- paste0(data_proc_dir, "Matched_orbis_suppliers/")
+matched_potential_suppliers_dir <- paste0(data_proc_dir, "Matched_potential_suppliers/")
 ### 2.1 Suppliers -------------------------------------------------
 suppliers_2016_file <- "21_10_27_Suppliers_cern_2016_nocontacts.xlsx"
 suppliers_2021_file <- "2021-06-29 - CERN Orders 2014-2021_clean.xlsx"
@@ -125,19 +125,36 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
   }
   
 # I have matched the suppliers and potential suppliers manually to Orbis and saved the files in the matched_orbis_suppliers folder
-# Match Italy 
+# Upload all the files
+  
+files <- list( 
+italy = "Export_suppliers_italy.xlsx",
+spain=  "Export_suppliers_spain.xlsx",
+france_1 =  "Export_suppliers_france_1.xlsx",
+france_2 =  "Export_suppliers_france_2.xlsx",
+uk = "Export_suppliers_uk.xlsx"
+)
+
+
+# Loop through the files and read each one
+for (country in names(files)){
+  file_path <- paste0(matched_orbis_suppliers_dir, files[[country]])
+  matched_suppliers<- read_excel(file_path)
+  
+  # Create the variable name
+  variable_name <- paste0("matched_orbis_", country)
+  
+  # Assign the data frame to a variable with the constructed name
+  assign(variable_name,  matched_suppliers)
+}
   
 
-italy_matched_suppliers_file <- "Export_suppliers_italy.xlsx"
-matched_italy_orbis <- read_excel(paste0(data_proc_dir, italy_matched_suppliers_file))
 
-matching_function(matched_italy_orbis, suppliers_italy, "italy")
 
-matched_italy_orbis<- matched_italy_orbis %>% 
-  rename(supplier_name = "Company name")
 
-suppliers_italy_matched<- left_join(suppliers_italy, matched_italy_orbis)
-suppliers_italy_matched<- suppliers_italy_matched %>% drop_na(`Matched BvD ID`)
+matching_function(matched_orbis_italy, suppliers_italy, "italy")
+suppliers_matched_italy<- left_join(suppliers_italy, matched_orbis_italy)
+suppliers_matched_italy<- suppliers_matched_italy %>% drop_na(`Matched BvD ID`)
 
 number_italy_matched<- suppliers_italy_matched %>% distinct(supplier_code)
 
