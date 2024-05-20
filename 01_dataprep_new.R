@@ -41,6 +41,8 @@ matching_function <- function(matched_orbis, suppliers_data, country){
 ## Setting up the directories for the data
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+matched_orbis_suppliers_dir<- paste0(data_proc_dir, "Matched_orbis_suppliers")
+matched_potential_suppliers_dir <- paste0(data_proc_dir, "Matched_potential_suppliers")
 ### 2.1 Suppliers -------------------------------------------------
 suppliers_2016_file <- "21_10_27_Suppliers_cern_2016_nocontacts.xlsx"
 suppliers_2021_file <- "2021-06-29 - CERN Orders 2014-2021_clean.xlsx"
@@ -88,20 +90,20 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
 #####  Write csv -----------------------------------------------------------
  #Italy
   
-  write.csv(suppliers_italy, (paste0("data_proc", "suppliers_italy.csv")), row.names = FALSE)
+  write.csv(suppliers_italy, file = paste0(data_proc_dir, "suppliers_italy.csv"), row.names = FALSE)
   
  #France
   suppliers_france_1<- suppliers_france[1:999,] # this is because I cannot load more than 1000 rows on Orbis
   suppliers_france_2<- suppliers_france[1000:nrow(suppliers_france),]
   
-  write.csv(suppliers_france_1,paste0("data_proc", "suppliers_france_1.csv"), row.names = FALSE)
-  write.csv(suppliers_france_2, paste0("data_proc" ,"suppliers_france_2.csv"), row.names = FALSE)
+  write.csv(suppliers_france_1,paste0(data_proc_dir, "suppliers_france_1.csv"), row.names = FALSE)
+  write.csv(suppliers_france_2, paste0(data_proc_dir ,"suppliers_france_2.csv"), row.names = FALSE)
   
 #Spain
-  write.csv(suppliers_spain, paste0("data_proc", "suppliers_spain.csv"), row.names = FALSE)
+  write.csv(suppliers_spain, paste0(data_proc_dir, "suppliers_spain.csv"), row.names = FALSE)
   
 # UK 
-  write.csv(suppliers_uk, paste0("data_proc", "suppliers_uk.csv"), row.names = FALSE)
+  write.csv(suppliers_uk, paste0(data_proc_dir, "suppliers_uk.csv"), row.names = FALSE)
 
   
 
@@ -110,34 +112,25 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
   potential_suppliers_selected_variables<- potential_suppliers_selected_variables %>% 
     select(suppliername, country)
   
-  # Italy
-  potential_suppliers_italy<- potential_suppliers_selected_variables%>% filter(country =="IT") %>% distinct()
-  write.csv(potential_suppliers_italy, here("data_proc", "potential_suppliers_italy.csv"), row.names = FALSE)
-  # France
-  potential_suppliers_france <- potential_suppliers_selected_variables %>% filter(country =="FR") %>% distinct()
-  write.csv(potential_suppliers_france, here("data_proc", "potential_suppliers_france.csv"), row.names = FALSE)
+  # Define the list of countries and their respective codes
+  countries <- c("IT" = "italy", "FR" = "france", "ES" = "spain", "GB" = "uk")
   
-  # Spain 
-  potential_suppliers_spain <- potential_suppliers_selected_variables %>% filter(country == "ES") %>% distinct()
-  write.csv(potential_suppliers_spain, here("data_proc", "potential_suppliers_spain.csv"), row.names = FALSE)
-  
-  # UK
-  potential_suppliers_uk <- potential_suppliers_selected_variables %>% filter(country =="GB") %>% distinct()
-  write.csv(potential_suppliers_uk, here("data_proc", "potential_suppliers_uk.csv"), row.names = FALSE)
-  
+  # Loop through each country and write the CSV files
+  for (country_code in names(countries)) {
+    country_name <- countries[[country_code]]
+    potential_suppliers <- potential_suppliers_selected_variables %>% 
+      filter(country == country_code) %>% 
+      distinct()
+    write.csv(potential_suppliers, paste0(data_proc_dir, "potential_suppliers_", country_name, ".csv"), row.names = FALSE)
+  }
   
 # I have matched the suppliers and potential suppliers manually to Orbis and saved the files in the matched_orbis_suppliers folder
 # Match Italy 
   
-  
-matched_italy_orbis <- read_excel("data_proc/Matched_orbis_suppliers/Export_suppliers_italy.xlsx")
-matching_function <- function(matched_orbis, suppliers_data, country){
-  matched_orbis<- matched_orbis %>% 
-    rename(supplier_name = "Company name")
- suppliers_country_matched<- left_join(suppliers_data, matched_orbis, by = "supplier_name") %>% 
- drop_na(`Matched BvD ID`) 
- assign(paste0("suppliers_", country, "_matched"), suppliers_country_matched, envir = .GlobalEnv)
- }
+
+italy_matched_suppliers_file <- "Export_suppliers_italy.xlsx"
+matched_italy_orbis <- read_excel(paste0(data_proc_dir, italy_matched_suppliers_file))
+
 matching_function(matched_italy_orbis, suppliers_italy, "italy")
 
 matched_italy_orbis<- matched_italy_orbis %>% 
