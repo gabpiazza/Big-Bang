@@ -149,36 +149,19 @@ for (country in names(files)){
 }
   
 
-
-
+## Matching them to the suppliers 
+#Italy
 
 matching_function(matched_orbis_italy, suppliers_italy, "italy")
-suppliers_matched_italy<- left_join(suppliers_italy, matched_orbis_italy)
-suppliers_matched_italy<- suppliers_matched_italy %>% drop_na(`Matched BvD ID`)
-
-number_italy_matched<- suppliers_italy_matched %>% distinct(supplier_code)
-
 
 # Match Spain 
+matching_function(matched_orbis_spain, suppliers_spain, "spain")
 
-matched_spain_orbis<- read_excel("data_proc/Matched_orbis_suppliers/Export_suppliers_spain.xlsx")
-matched_spain_orbis <- matched_spain_orbis %>% 
-  rename(supplier_name = "Company name")
+# Match France
+matched_orbis_france <- rbind(matched_orbis_france_1, matched_orbis_france_2)
+matching_function(matched_orbis_france, suppliers_france, "france")
 
-suppliers_spain_matched<- left_join(suppliers_spain, matched_spain_orbis)
-suppliers_spain_matched<- suppliers_spain_matched %>% drop_na(`Matched BvD ID`)
-
-number_spain_matched<- suppliers_spain_matched %>% distinct(supplier_code)
-
-# Match France 
-matched_france_orbis_1<- read_excel("data_proc/Matched_orbis_suppliers/Export_suppliers_france_1.xlsx")
-matched_france_orbis_2<- read_excel("data_proc/Matched_orbis_suppliers/Export_suppliers_france_2.xlsx")
-matched_france_orbis<- rbind(matched_france_orbis_1, matched_france_orbis_2)
-
-matched_france_orbis<- matched_france_orbis %>% 
-  rename(supplier_name = "Company name")
+#Match UK
+matching_function(matched_orbis_uk, suppliers_uk, "uk")
 
 
-suppliers_france_matched<- left_join(suppliers_france, matched_france_orbis)
-suppliers_france_matched<- suppliers_france_matched %>% drop_na(`Matched BvD ID`)
-number_france_matched<- suppliers_france_matched %>% distinct(supplier_code)
