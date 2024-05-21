@@ -76,12 +76,10 @@ process_country_data <- function(country, country_suppliers, orbis_path, nace_pa
   matched_suppliers <- matching_orbis_addresses(address_data, matched_suppliers)
   rm(address_data)
   
-  matched_suppliers <- matched_suppliers %>% 
-    select(-nacerev2primarycodetextdescripti)
+
   
-  number_matched <- unique(matched_suppliers$bvd_id_number)
-  
-  return(list(data = matched_suppliers, unique_ids = number_matched))
+
+  return(data = matched_suppliers)
 }
 
 # 2.  Load the data for suppliers and registered companies-------------------------------------------------------
