@@ -18,7 +18,7 @@
 # #1.1 Install & Load packages --------------------------------------------------------
 
 # some setup: a cheeky little bit of code to check and install packages
-need <- c("tidyverse","stargazer", "janitor", "here","readxl") # list packages needed
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven") # list packages needed
 have <- need %in% rownames(installed.packages()) # checks packages you have
 if(any(!have)) install.packages(need[!have]) # install missing packages
 invisible(lapply(need, library, character.only=T)) # load needed packages
@@ -30,12 +30,59 @@ options(scipen = 999)
 # This is a function to match the bvd_id that I manually retrieved from Orbis with the suppliers 
 matching_bvd_id_function <- function(matched_orbis, suppliers_data, country){
   matched_orbis<- matched_orbis %>% 
-    rename(supplier_name = "Company name")
-  suppliers_country_matched<- left_join(suppliers_data, matched_orbis, by = "supplier_name") %>% 
-    drop_na(`Matched BvD ID`) 
+    rename(supplier_name = company_name)
+  suppliers_country_matched<- left_join(suppliers_data, matched_orbis, by = "supplier_name") 
   assign(paste0("suppliers_", country, "_matched"), suppliers_country_matched, envir = .GlobalEnv)
 }
 
+matching_orbis_financial <- function(country_suppliers, orbis_country){
+  new_dataset <- inner_join(country_suppliers, orbis_country, by = "bvd_id_number") %>%
+    mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>%
+    filter(!is.na(closing_date_format)) %>%
+    select(-research_development_expenses) %>%
+    drop_na()
+  return(new_dataset)
+}
+
+
+matching_orbis_nace <- function(data, matched_cern_firms){
+  data <- data %>%
+    rename(bvd_id_number = bvdidnumber)
+  new_dataset <- inner_join(matched_cern_firms, data, by = "bvd_id_number") %>%
+    select(1:11) # Why am I doing this?
+  return(new_dataset)
+}
+
+matching_orbis_addresses<- function(data, matched_cern_firms){
+  data <- data %>%
+    clean_names() %>%
+    rename(bvd_id_number = "bv_d_id_number") %>%
+    select(bvd_id_number, postcode, city)
+  new_dataset <- inner_join(matched_cern_firms, data, by = "bvd_id_number")
+  return(new_dataset)
+}
+
+# General function to load and process data for a given country
+process_country_data <- function(country, country_suppliers, orbis_path, nace_path, address_path){
+  orbis_data <- read_dta(orbis_path, encoding = 'latin1')
+  matched_suppliers <- matching_orbis_financial(country_suppliers, orbis_data)
+  rm(orbis_data)
+  
+  nace_data <- read_csv(nace_path)
+  matched_suppliers <- matching_orbis_nace(nace_data, matched_suppliers)
+  rm(nace_data)
+  
+  address_data <- read_csv(address_path, skip = 1)
+  matched_suppliers <- matching_orbis_addresses(address_data, matched_suppliers)
+  rm(address_data)
+  
+  matched_suppliers <- matched_suppliers %>% 
+    select(-nacerev2primarycodetextdescripti)
+  
+  number_matched <- unique(matched_suppliers$bvd_id_number)
+  
+  return(list(data = matched_suppliers, unique_ids = number_matched))
+}
 
 # 2.  Load the data for suppliers and registered companies-------------------------------------------------------
 ## Setting up the directories for the data
@@ -43,6 +90,9 @@ data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 matched_orbis_suppliers_dir<- paste0(data_proc_dir, "Matched_orbis_suppliers/")
 matched_potential_suppliers_dir <- paste0(data_proc_dir, "Matched_potential_suppliers/")
+orbis_financial_dir<- paste0(data_raw_dir,"Orbis_Financial/" )
+orbis_Nace_dir <- paste0(data_raw_dir, "ORBIS_NACE_2/")
+orbis_addresses_dir <- paste0(data_raw_dir, "ORBIS_ADDRESSES/")
 ### 2.1 Suppliers -------------------------------------------------
 suppliers_2016_file <- "21_10_27_Suppliers_cern_2016_nocontacts.xlsx"
 suppliers_2021_file <- "2021-06-29 - CERN Orders 2014-2021_clean.xlsx"
@@ -131,8 +181,11 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
 
 # I have matched the suppliers and potential suppliers manually to Orbis and saved the files in the matched_orbis_suppliers  and potential suppliers folder
 # I have done this to retrive the bvd_id _numbers
-  
+
   # Upload all the files
+
+## 4.1 Suppliers ---------------------------------------------------------
+
   
 files <- list( 
 italy = "Export_suppliers_italy.xlsx",
@@ -147,9 +200,14 @@ uk = "Export_suppliers_uk.xlsx"
 for (country in names(files)){
   file_path <- paste0(matched_orbis_suppliers_dir, files[[country]])
   matched_suppliers<- read_excel(file_path)
+  matched_suppliers <- matched_suppliers[!is.na(matched_suppliers$`Matched BvD ID`), ]
+  matched_suppliers <- matched_suppliers %>%
+    rename(bvd_id_number = `Matched BvD ID`)
+  matched_suppliers<- clean_names(matched_suppliers)
   
   # Create the variable name
   variable_name <- paste0("matched_orbis_", country)
+  
   
   # Assign the data frame to a variable with the constructed name
   assign(variable_name,  matched_suppliers)
@@ -172,6 +230,62 @@ matching_bvd_id_function(matched_orbis_france, suppliers_france, "france")
 matching_bvd_id_function(matched_orbis_uk, suppliers_uk, "uk")
 
 
+## 4.1 Potential Suppliers ---------------------------------------------------------
 
+files <- list( 
+  italy = "Export_potential_suppliers_italy.xlsx",
+  spain=  "Export_potential_suppliers_spain.xlsx",
+  france =  "Export_potential_suppliers_france.xlsx",
+  uk = "Export_potential_suppliers_uk.xlsx"
+)
+
+# Loop through the files and read each one
+for (country in names(files)){
+  file_path <- paste0(matched_potential_suppliers_dir, files[[country]])
+  matched_potential_suppliers <- read_excel(file_path)
+  
+  # Drop rows with NA in bvd_id_number
+  matched_potential_suppliers <- matched_potential_suppliers[!is.na(matched_potential_suppliers$`Matched BvD ID`), ]
+  matched_potential_suppliers <- matched_potential_suppliers %>%
+    rename(bvd_id_number =`Matched BvD ID`)
+  matched_potentail_suppliers<- clean_names(matched_potential_suppliers)
+  # Create the variable name
+  variable_name <- paste0("matched_orbis_potential_", country)
+  
+  # Assign the data frame to a variable with the constructed name
+  assign(variable_name, matched_potential_suppliers)
+}
+
+
+# 5. CERN Matching --------------------------------------------------------
+# File paths by country
+file_paths <- list(
+  france = list(
+    financial = paste0(orbis_financial_dir, "Gabriele FR.dta"),
+    nace = paste0(orbis_Nace_dir, "NACE FR.csv"),
+    address = paste0(orbis_addresses_dir,"ADDRESS_FR.csv")
+  ),
+  spain = list(
+    financial = paste0(orbis_financial_dir,"Gabriele ES.dta"),
+    nace =  paste0(orbis_Nace_dir,"NACE ES.csv"),
+    address = paste0(orbis_addresses_dir,"ADDRESS_ES.csv")
+  ),
+  italy = list(
+    financial = paste0(orbis_financial_dir, "Gabriele IT.dta"),
+    nace = paste0(orbis_Nace_dir,"NACE IT.csv"),
+    address =paste0(orbis_addresses_dir ,"ADDRESS_IT.csv")
+  ),
+  uk = list(
+   financial = paste0(orbis_financial_dir,"Gabriele GB.dta"),
+    nace =  paste0(orbis_Nace_dir,"NACE GB.csv"),
+    address = paste0(orbis_addresses_dir ,"ADDRESS_GB.csv")
+  )
+)
+## 5.1 Suppliers -----------------------------------------------------------
+
+france_data <- process_country_data("france", matched_orbis_france, file_paths$france$financial, file_paths$france$nace, file_paths$france$address)
+spain_data <- process_country_data("spain", matched_orbis_spain, file_paths$spain$financial, file_paths$spain$nace, file_paths$spain$address)
+italy_data <- process_country_data("italy", matched_orbis_italy, file_paths$italy$financial, file_paths$italy$nace, file_paths$italy$address)
+uk_data <- process_country_data("uk", matched_orbis_uk, file_paths$uk$financial, file_paths$uk$nace, file_paths$uk$address)
 
 
