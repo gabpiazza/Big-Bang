@@ -27,8 +27,8 @@ options(scipen = 999)
 
 
   ##1.2 Create Functions ----------------------------------------------------
-
-matching_function <- function(matched_orbis, suppliers_data, country){
+# This is a function to match the bvd_id that I manually retrieved from Orbis with the suppliers 
+matching_bvd_id_function <- function(matched_orbis, suppliers_data, country){
   matched_orbis<- matched_orbis %>% 
     rename(supplier_name = "Company name")
   suppliers_country_matched<- left_join(suppliers_data, matched_orbis, by = "supplier_name") %>% 
@@ -53,11 +53,13 @@ suppliers_2021<- clean_names(suppliers_2021)
 
 
 ### 2.2 Registered firm (potential suppliers) ---------------------------
-potential_suppliers_file<- "22_03_08_potential_suppliers_procurement.csv"
+potential_suppliers_file<- "22_03_08_potential_suppliers_procurement.csv"# there is somethign wrong here as it has only GB
 potential_suppliers<- read_csv(paste0(data_raw_dir, potential_suppliers_file))
 potential_suppliers<- clean_names(potential_suppliers)
 
-# 3. Data preparation
+
+# 3. Data Preparation -----------------------------------------------------
+
 
 
 ### 3.1 Suppliers ------------------------------------------------------------
@@ -123,9 +125,14 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
       distinct()
     write.csv(potential_suppliers, paste0(data_proc_dir, "potential_suppliers_", country_name, ".csv"), row.names = FALSE)
   }
+
+# 4. Load the data with bvd id number -------------------------------------
+
+
+# I have matched the suppliers and potential suppliers manually to Orbis and saved the files in the matched_orbis_suppliers  and potential suppliers folder
+# I have done this to retrive the bvd_id _numbers
   
-# I have matched the suppliers and potential suppliers manually to Orbis and saved the files in the matched_orbis_suppliers folder
-# Upload all the files
+  # Upload all the files
   
 files <- list( 
 italy = "Export_suppliers_italy.xlsx",
@@ -149,19 +156,22 @@ for (country in names(files)){
 }
   
 
-## Matching them to the suppliers 
+## Matching them to the suppliers data to retreive information on supplier code etc
 #Italy
 
-matching_function(matched_orbis_italy, suppliers_italy, "italy")
+matching_bvd_id_function(matched_orbis_italy, suppliers_italy, "italy")
 
 # Match Spain 
-matching_function(matched_orbis_spain, suppliers_spain, "spain")
+matching_bvd_id_function(matched_orbis_spain, suppliers_spain, "spain")
 
 # Match France
 matched_orbis_france <- rbind(matched_orbis_france_1, matched_orbis_france_2)
-matching_function(matched_orbis_france, suppliers_france, "france")
+matching_bvd_id_function(matched_orbis_france, suppliers_france, "france")
 
 #Match UK
-matching_function(matched_orbis_uk, suppliers_uk, "uk")
+matching_bvd_id_function(matched_orbis_uk, suppliers_uk, "uk")
+
+
+
 
 
