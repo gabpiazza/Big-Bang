@@ -39,8 +39,7 @@ matching_orbis_financial <- function(country_suppliers, orbis_country){
   new_dataset <- inner_join(country_suppliers, orbis_country, by = "bvd_id_number") %>%
     mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>%
     filter(!is.na(closing_date_format)) %>%
-    select(-research_development_expenses) %>%
-    drop_na()
+    select(research_development_expenses) %>%
   return(new_dataset)
 }
 
@@ -48,15 +47,15 @@ matching_orbis_financial <- function(country_suppliers, orbis_country){
 matching_orbis_nace <- function(data, matched_cern_firms){
   data <- data %>%
     rename(bvd_id_number = bvdidnumber)
-  new_dataset <- inner_join(matched_cern_firms, data, by = "bvd_id_number") %>%
-    select(1:11) # Why am I doing this?
+  new_dataset <- inner_join(matched_cern_firms, data, by = "bvd_id_number",relationship = "many-to-many") 
   return(new_dataset)
 }
 
 matching_orbis_addresses<- function(data, matched_cern_firms){
   data <- data %>%
     clean_names() %>%
-    rename(bvd_id_number = "bv_d_id_number") %>%
+    rename(bvd_id_number = "bv_d_id_number") %>% 
+    rename(bvd_id_number = "bvd_id_number")%>%
     select(bvd_id_number, postcode, city)
   new_dataset <- inner_join(matched_cern_firms, data, by = "bvd_id_number")
   return(new_dataset)
@@ -64,24 +63,23 @@ matching_orbis_addresses<- function(data, matched_cern_firms){
 
 # General function to load and process data for a given country
 process_country_data <- function(country, country_suppliers, orbis_path, nace_path, address_path){
-  orbis_data <- read_dta(orbis_path, encoding = 'latin1')
+  orbis_data <- read_dta(orbis_path, encoding = 'latin1') %>% 
+    clean_names()
   matched_suppliers <- matching_orbis_financial(country_suppliers, orbis_data)
   rm(orbis_data)
   
-  nace_data <- read_csv(nace_path)
-  matched_suppliers <- matching_orbis_nace(nace_data, matched_suppliers)
+  nace_data <- read_csv(nace_path) %>%
+    clean_names()
+  matched_suppliers <- matching_orbis_nace(matched_suppliers,nace_data)
   rm(nace_data)
   
-  address_data <- read_csv(address_path, skip = 1)
-  matched_suppliers <- matching_orbis_addresses(address_data, matched_suppliers)
+  address_data <- read_csv(address_path, skip = 1) %>% 
+    clean_names()
+  matched_suppliers <- matching_orbis_addresses( matched_suppliers,address_data)
   rm(address_data)
   
-  matched_suppliers <- matched_suppliers %>% 
-    select(-nacerev2primarycodetextdescripti)
   
-  number_matched <- unique(matched_suppliers$bvd_id_number)
-  
-  return(list(data = matched_suppliers, unique_ids = number_matched))
+  return(data = matched_suppliers)
 }
 
 # 2.  Load the data for suppliers and registered companies-------------------------------------------------------
@@ -91,7 +89,7 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 matched_orbis_suppliers_dir<- paste0(data_proc_dir, "Matched_orbis_suppliers/")
 matched_potential_suppliers_dir <- paste0(data_proc_dir, "Matched_potential_suppliers/")
 orbis_financial_dir<- paste0(data_raw_dir,"Orbis_Financial/" )
-orbis_Nace_dir <- paste0(data_raw_dir, "ORBIS_NACE_2/")
+orbis_Nace_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/ORBIS NACE/"
 orbis_addresses_dir <- paste0(data_raw_dir, "ORBIS_ADDRESSES/")
 ### 2.1 Suppliers -------------------------------------------------
 suppliers_2016_file <- "21_10_27_Suppliers_cern_2016_nocontacts.xlsx"
@@ -262,30 +260,49 @@ for (country in names(files)){
 file_paths <- list(
   france = list(
     financial = paste0(orbis_financial_dir, "Gabriele FR.dta"),
-    nace = paste0(orbis_Nace_dir, "NACE FR.csv"),
+    nace = paste0(orbis_Nace_dir, "Nace FR_selected_variables.csv"),
     address = paste0(orbis_addresses_dir,"ADDRESS_FR.csv")
   ),
   spain = list(
     financial = paste0(orbis_financial_dir,"Gabriele ES.dta"),
-    nace =  paste0(orbis_Nace_dir,"NACE ES.csv"),
+    nace =  paste0(orbis_Nace_dir,"Nace ES_selected_variables.csv"),
     address = paste0(orbis_addresses_dir,"ADDRESS_ES.csv")
   ),
   italy = list(
     financial = paste0(orbis_financial_dir, "Gabriele IT.dta"),
-    nace = paste0(orbis_Nace_dir,"NACE IT.csv"),
+    nace = paste0(orbis_Nace_dir,"NACE IT_selected_variables.csv"),
     address =paste0(orbis_addresses_dir ,"ADDRESS_IT.csv")
   ),
   uk = list(
    financial = paste0(orbis_financial_dir,"Gabriele GB.dta"),
-    nace =  paste0(orbis_Nace_dir,"NACE GB.csv"),
+    nace =  paste0(orbis_Nace_dir,"Nace GB_selected_variables.dta"),
     address = paste0(orbis_addresses_dir ,"ADDRESS_GB.csv")
   )
 )
 ## 5.1 Suppliers -----------------------------------------------------------
 
-france_data <- process_country_data("france", matched_orbis_france, file_paths$france$financial, file_paths$france$nace, file_paths$france$address)
-spain_data <- process_country_data("spain", matched_orbis_spain, file_paths$spain$financial, file_paths$spain$nace, file_paths$spain$address)
-italy_data <- process_country_data("italy", matched_orbis_italy, file_paths$italy$financial, file_paths$italy$nace, file_paths$italy$address)
-uk_data <- process_country_data("uk", matched_orbis_uk, file_paths$uk$financial, file_paths$uk$nace, file_paths$uk$address)
+france_suppliers_orbis <- process_country_data("france", matched_orbis_france, file_paths$france$financial, file_paths$france$nace, file_paths$france$address)
+number_french_companies <- unique(france_suppliers_orbis$bvd_id_number)
+spain_suppliers_orbis <- process_country_data("spain", matched_orbis_spain, file_paths$spain$financial, file_paths$spain$nace, file_paths$spain$address)
+italy_suppliers_orbis <- process_country_data("italy", matched_orbis_italy, file_paths$italy$financial, file_paths$italy$nace, file_paths$italy$address)
+uk_suppliers_orbis <- process_country_data("uk", matched_orbis_uk, file_paths$uk$financial, file_paths$uk$nace, file_paths$uk$address)
 
+
+spain<- read_dta(paste0(paste0(orbis_financial_dir,"Gabriele ES.dta")),encoding='latin1')
+rm(spain)
+spain_matched_orbis <- inner_join(matched_orbis_spain, spain)
+spain_nace<- read_csv(paste0(orbis_Nace_dir,"NACE ES.csv"))
+spain_address <-read_csv(paste0(orbis_addresses_dir,"ADDRESS_ES.csv"),skip = 1)
+spain_nace<- spain_nace %>% rename(bvd_id_number = bvdidnumber)
+spain_matched_orbis_nace<- inner_join(spain_matched_orbis, spain_nace)
+uk_nace<- read_csv( paste0(orbis_Nace_dir,"NACE GB.csv"))
+
+
+test_path <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/ORBIS NACE/Nace FR_selected_variables.csv"
+nace_data <- read_csv(test_path)
+
+# combine all the datasets together
+
+matched_suppliers_orbis_data <- rbind(france_suppliers_orbis, spain_suppliers_orbis, italy_suppliers_orbis, uk_suppliers_orbis)
+number_of_companies<- unique(matched_suppliers_orbis_data$bvd_id_number)
 
