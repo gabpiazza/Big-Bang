@@ -315,7 +315,7 @@ file_paths <- list(
   ),
   uk = list(
    financial = paste0(orbis_financial_dir,"Gabriele GB.dta"),
-    nace =  paste0(orbis_Nace_dir,"Nace GB_selected_variables.dta"),
+    nace =  paste0(orbis_Nace_dir,"Nace GB_selected_variables.csv"),
     address = paste0(orbis_addresses_dir ,"ADDRESS_GB.csv")
   )
 )
@@ -327,7 +327,23 @@ italy_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_orbis)
 spain_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_orbis)
 uk_suppliers_orbis <- process_orbis_data ("uk", file_paths, matched_orbis)
 # combine all the datasets together
+# Ensure the column names are consistent where possible
+colnames(france_suppliers_orbis)[which(names(france_suppliers_orbis) == "country.x")] <- "country"
+colnames(france_suppliers_orbis)[which(names(france_suppliers_orbis) == "city.x")] <- "city"
+colnames(italy_suppliers_orbis)[which(names(italy_suppliers_orbis) == "country")] <- "country"
+colnames(italy_suppliers_orbis)[which(names(italy_suppliers_orbis) == "city.x")] <- "city"
+colnames(spain_suppliers_orbis)[which(names(spain_suppliers_orbis) == "country")] <- "country"
+colnames(spain_suppliers_orbis)[which(names(spain_suppliers_orbis) == "city.x")] <- "city"
+colnames(uk_suppliers_orbis)[which(names(uk_suppliers_orbis) == "country")] <- "country"
+colnames(uk_suppliers_orbis)[which(names(uk_suppliers_orbis) == "city.x")] <- "city"
 
-matched_suppliers_orbis_data <- rbind(france_suppliers_orbis, spain_suppliers_orbis, italy_suppliers_orbis, uk_suppliers_orbis)
-number_of_companies<- unique(matched_suppliers_orbis_data$bvd_id_number)
+# Bind the dataframes together
+matched_suppliers_orbis_data <- bind_rows(france_suppliers_orbis, 
+                                      italy_suppliers_orbis, 
+                                      spain_suppliers_orbis, 
+                                      uk_suppliers_orbis)
+
+
+
+
 
