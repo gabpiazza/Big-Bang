@@ -145,15 +145,85 @@ potential_suppliers<- clean_names(potential_suppliers)
 
 # I combine the datasets for both periods
 
+
+
+number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct()
+number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct()
+
 suppliers_2016_selected_variables<- suppliers_2016 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 suppliers_2021_selected_variables<- suppliers_2021 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 all_suppliers_selected_variables<- rbind(suppliers_2016_selected_variables, suppliers_2021_selected_variables)
 all_suppliers_selected_variables$vat_number<- as.character(all_suppliers_selected_variables$vat_number)
 all_suppliers_selected_variables<- all_suppliers_selected_variables %>% distinct()
+
+
+
+orders_2016 <- suppliers_2016 %>% select(-contact) %>% rename(chf_amount = sum_chf_amount)
+orders_2021<- suppliers_2021
+orders_2021$subproject_1<- NA
+all_orders<-rbind(orders_2016, orders_2021)
+all_orders$order_date<-as.numeric(all_orders$order_date)
+all_orders<- clean_names(all_orders)
+all_orders<- all_orders %>% rename(registration_year = registration_supplier)
+number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct() # 2,284 suppliers
+number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct() # 21,261 orders
+
+## 3.2 Loading the tech_lookup given by CSIL -----------------------------------------------------
+#-- This might be redundant as companies might be assigned different codes
+tech_level_file <- "CERN_techlevel.xlsx"
+CERN_orders_techlevel <- read_excel(paste0(data_raw_dir, tech_level_file))
+CERN_orders_techlevel<-clean_names(CERN_orders_techlevel)
+tech_level<-CERN_orders_techlevel %>% select(x3_digits,tech_intensity) # don't need the other columns so  am dropping
+
+## 6.3 Loading the Balance by member state lookup --------------------------------------------------
+#--- The issue here is that many years do not have a code
+balance_MS_file <- "balance_MS.csv"
+balance_MS <- read_csv(paste0(data_raw_dir, balance_MS_file))
+balance_MS <- clean_names(balance_MS)
+balance_MS<- balance_MS %>% rename(country=iso_code,order_date=year)
+
+## 6.4 Merging procurement data, tech lookup and balance ----------------------------------------------
+# The changes to city names are unnecessary as I end up dropping the city name variable as I have a number of duplicates
+
+all_orders$x3_digits <- str_extract(all_orders$purchase_code, "^\\d{3}")
+
+all_orders_tech<- left_join(all_orders,tech_level)#joining the two datasets
+all_orders_tech_balance<- left_join(all_orders_tech, balance_MS)
+all_orders_tech_balance<- all_orders_tech_balance %>% rename(company_name=supplier_name)
+all_orders_tech_balance$city[all_orders_tech_balance$city=='LABEGE (TOULOUSE)']<-'TOULOUSE'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='LABEGE']<-'TOULOUSE'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='NEWBURY  BERKSHIRE']<-'NEWBURYBERKSHIRE'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='DECINES']<-'RUEIL MALMAISON'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='DECINES CHARPIEU CEDEX']<-'RUEIL MALMAISON'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='DECINES CHARPIEU']<-'RUEIL MALMAISON'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='DECINES CEDEX']<-'RUEIL MALMAISON'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='COLCHESTER  ESSEX']<-'COLCHESTER ESSEX'
+all_orders_tech_balance$city[all_orders_tech_balance$city=='NEWBURYBERKSHIRE']<-'NEWBURY BERKSHIRE'
+all_orders_tech_balance_selected<-all_orders_tech_balance %>% 
+  select(company_name, supplier_code, subroject, subproject_1, order_date, city,x3_digits,code_2_digits, code_1_digit, country, chf_amount, tech_intensity, coefficient_return_supplies, supplies_ms_status, well_balanced,
+         media_annua, balance_over_time, registration_year, code_1_digit, code_2_digits, order_number)
+
+# The next step is to replace the tech intensity NA and ? with 0 - not making any assumptions on what 0 means
+all_orders_tech_balance$tech_intensity[all_orders_tech_balance$tech_intensity=="?"]<-0 
+all_orders_tech_balance$tech_intensity[is.na(all_orders_tech$tech_intensity)]<- 0
+
+# I want to assign the high-tech variable to the order 
+high_tech_order <- c(3,4,5,7)# I use the information provided by CSIL
+low_tech_order<- c(1,2,6,0,9,8, NA) #
+
+all_orders_tech_balance<- all_orders_tech_balance %>% 
+  mutate(tech_level= case_when(tech_intensity %in% high_tech_order~1,
+                               TRUE ~0))
+selected_countries <- c("IT", "GB", "ES", "FR")
+fr_it_es_uk_orders<- all_orders_tech_balance %>% filter(country %in% selected_countries)
+
+saveRDS(all_orders_tech_balance,paste0(data_proc_dir, "all_orders_tech_balance"))
+saveRDS(fr_it_es_uk_orders, paste0(data_proc_dir, "fr_it_es_uk_orders"))
+
 ##### Selected countries -------------------------------------------------
 ## The reason I do this is that I then match then manually and I can only do it for a few countries
-selected_countries <- c("IT", "GB", "ES", "FR")
-suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(country %in% selected_countries)
+
+suppliers_selected_countries <- fr_it_es_uk_orders
 
 # Italy
   suppliers_italy<- suppliers_selected_countries %>% filter(country =="IT") %>% distinct()
@@ -186,6 +256,8 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
 # UK 
   write.csv(suppliers_uk, paste0(data_proc_dir, "suppliers_uk.csv"), row.names = FALSE)
 
+ 
+ 
   
 
 ### 3.2 Registered companies (potential suppliers) --------------------------
@@ -342,8 +414,8 @@ matched_suppliers_orbis_data <- bind_rows(france_suppliers_orbis,
                                       italy_suppliers_orbis, 
                                       spain_suppliers_orbis, 
                                       uk_suppliers_orbis)
-
-
+saveRDS(matched_suppliers_orbis_data, paste0(data_proc_dir, "matched_suppliers_orbis_data"))
+rm(matched_suppliers_orbis_data)
 ## 5.2  Potential suppliers-----------------------------------------------------------
 
 matched_potential_suppliers_orbis <- list(
@@ -358,8 +430,6 @@ france_potential_suppliers_orbis <- process_orbis_data("france", file_paths, mat
 italy_potential_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_potential_suppliers_orbis)
 spain_potential_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_potential_suppliers_orbis)
 uk_potential_suppliers_orbis <- process_orbis_data ("uk", file_paths, matched_potential_suppliers_orbis)
-
-
 
 # Ensure the column names are consistent where possible
 colnames(france_potential_suppliers_orbis)[which(names(france_potential_suppliers_orbis) == "country.x")] <- "country"
@@ -376,3 +446,7 @@ matched_potential_suppliers_orbis_data  <- bind_rows(france_potential_suppliers_
                                                 italy_potential_suppliers_orbis, 
                                                 spain_potential_suppliers_orbis, 
                                                 uk_potential_suppliers_orbis)
+
+saveRDS(matched_potential_suppliers_orbis_data, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data"))
+rm(matched_potential_suppliers_orbis_data)
+
