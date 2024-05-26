@@ -3,187 +3,44 @@
 #' author: Gabriele Piazza
 #' date: 2023-06-27
 #' ---
-#This dataset matches the potential suppliers (not-treated) to the data on CERN. The datasets are saved in a separate folder and have not been
 #uploaded due to size reasons 
 
-# 1. Install & Load packages --------------------------------------------------------
 
-# * 1.1 Install packages -------------------------------------------------
-install.packages("tidyverse")
-install.packages("readr")
-install.packages("haven")
-install.packages("foreign")
-install.packages("visdat")
-install.packages("haven")
-install.packages("data.table")
-install.packages("readxl")
-install.packages("janitor")
-install.packages("stringdist")
-install.packages("fuzzyjoin")
+# 1.  Set up --------------------------------------------------------------
+
+## 1.1 Install & Load packages --------------------------------------------------------
+
+# some setup: a cheeky little bit of code to check and install packages
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate") # list packages needed
+have <- need %in% rownames(installed.packages()) # checks packages you have
+if(any(!have)) install.packages(need[!have]) # install missing packages
+invisible(lapply(need, library, character.only=T)) # load needed packages
+
 options(scipen = 999)
-# * 1.2 Load packages ---------------------------------------------------------------
-library(visdat)
-library(haven)
-library(tidyverse)
-library(foreign)
-library(readr)
-library(lubridate)
-library(haven)
-library(data.table)
-library(readxl)
-library(janitor)
-library(readxl)
-library(here)
-library(stringdist)
-library(fuzzyjoin)
-library(beepr)
-# 2. Data preparation --------------------------------------------------------
-## Load all the potential suppliers
-# * 2.1 Load the potential CERN suppliers  ------------------------------------------------
-files_list <- list.files(path = "~/Dropbox/PhD/CERN_procurement/Analysis/data_proc/Matched_potential_suppliers",
-                         pattern = "*.xlsx",
-                         full.names = TRUE)
+
+## 1.2 Create functions ----------------------------------------------------
 
 
-folder_path <- "~/Dropbox/PhD/CERN_procurement/Analysis/data_proc/Matched_potential_suppliers/"
-files_list <- list.files(path = folder_path, full.names = TRUE)
-
-all_potential_suppliers_data <- files_list %>%
-  map_dfr(read_excel) 
-
-all_potential_suppliers_data<- clean_names(all_potential_suppliers_data)
-all_potential_suppliers_data<- all_potential_suppliers_data %>% rename(bvd_id_number = matched_bv_d_id)
-matched_orbis_potential_suppliers<- all_potential_suppliers_data %>% drop_na(bvd_id_number)
-spain_potential_suppliers<- matched_orbis_potential_suppliers %>% filter(country =="ES")
-france_potential_suppliers<- matched_orbis_potential_suppliers %>% filter(country =="FR")
-italy_potential_suppliers <- matched_orbis_potential_suppliers %>% filter(country =="IT")
-uk_potential_suppliers<- matched_orbis_potential_suppliers %>% filter(country =="GB")
-
-
-# * 2.4 Load and match country data ---------------------------------------------------------
-#I am applying the matching_cern function to the different datasets
-
-
-####   ** 2.41 France ---------------------------------------------------------
-
-
-france<- read_dta("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_LIBRARY/Gabriele/Gabriele FR.dta",encoding='latin1')
-france_matched_potential_suppliers <- inner_join(france_potential_suppliers, france, by = 'bvd_id_number')# match it b 
-rm(france)
-
-france_matched_potential_suppliers<- france_matched_potential_suppliers %>% mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>% 
-  filter(!is.na(closing_date_format))
-
-france_nace<- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_NACE_2/NACE FR.csv")
-france_nace<- france_nace %>% rename(bvd_id_number = bvdidnumber)
-france_matched_potential_suppliers <- left_join(france_matched_potential_suppliers, france_nace, by = 'bvd_id_number')
-rm(france_nace)
-
-france_address<- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_ADDRESSES/ADDRESS_FR.csv", skip=1)
-france_address<- clean_names(france_address)
-france_address<- france_address %>% rename(bvd_id_number = "bv_d_id_number") %>% 
-  select(bvd_id_number, postcode, city)
-
-france_matched_potential_suppliers<- left_join(france_matched_potential_suppliers, france_address, by = 'bvd_id_number')
-france_matched_potential_suppliers <- france_matched_potential_suppliers %>% select(-nacerev2primarycodetextdescripti)
-rm(france_address)
-#write.csv(france_matched, "~/Dropbox/PhD/procurement_cern/data/processed/Orbis_matched_country/france_matched.csv")
-
-number_france_matched <- unique(france_matched_suppliers$bvd_id_number)
-
-###   ** 2.42 Spain ---------------------------------------------------------------
-
-spain<- read_dta("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_LIBRARY/Gabriele/Gabriele ES.dta",encoding='latin1')
-
-spain_matched_potential_suppliers <- inner_join(spain_potential_suppliers, spain, by = 'bvd_id_number')
-spain_matched_potential_suppliers<- spain_matched_potential_suppliers %>% mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>% 
-  filter(!is.na(closing_date_format))
-
-rm(spain)
-
-spain_nace<- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_NACE_2/NACE ES.csv")
-spain_nace<- spain_nace %>% rename(bvd_id_number = bvdidnumber)
-spain_matched_potential_suppliers <- left_join(spain_matched_potential_suppliers, spain_nace, by = 'bvd_id_number')
-rm(spain_nace)
-
-spain_address <- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_ADDRESSES/ADDRESS_ES.csv", skip=1)
-spain_address<- clean_names(spain_address)
-spain_address<- spain_address %>% rename(bvd_id_number = "bv_d_id_number") %>% 
-  select(bvd_id_number, postcode, city)
-
-spain_matched_potential_suppliers<- left_join(spain_matched_potential_suppliers, spain_address, by = 'bvd_id_number')
-rm(spain_address)
-
-
-number_spain_matched<- unique(spain_matched_potential_suppliers$bvd_id_number)
-
-
-
-
-### ** 2.43   *Italy ---------------------------------------------------------------
-
-italy<- read_dta("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_LIBRARY/Gabriele/Gabriele IT.dta",encoding='latin1')
-
-italy_matched_potential_suppliers <- inner_join(italy_potential_suppliers, italy, by = 'bvd_id_number')
-italy_matched_potential_suppliers<- italy_matched_potential_suppliers %>% mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>% 
-  filter(!is.na(closing_date_format))
-
-rm(italy)
-
-italy_nace<- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_NACE_2/NACE IT.csv")
-italy_nace<- italy_nace %>% rename(bvd_id_number = bvdidnumber)
-italy_matched_potential_suppliers <- left_join(italy_matched_potential_suppliers, italy_nace, by = 'bvd_id_number')
-rm(italy_nace)
-
-italy_address <- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_ADDRESSES/ADDRESS_IT.csv", skip=1)
-italy_address<- clean_names(italy_address)
-italy_address<- italy_address %>% rename(bvd_id_number = "bv_d_id_number") %>% 
-  select(bvd_id_number, postcode, city)
-
-italy_matched_potential_suppliers<- left_join(italy_matched_potential_suppliers, italy_address, by = 'bvd_id_number')
-rm(italy_address)
-
-italy_matched_potential_suppliers<- italy_matched_potential_suppliers %>% select(-nacerev2primarycodetextdescripti)
-
-number_italy_matched<- unique(italy_matched_potential_suppliers$bvd_id_number)
-
-
-### ** 2.44   *UK ---------------------------------------------------------------
-
-UK <- read_dta("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_LIBRARY/Gabriele/Gabriele GB.dta",encoding='latin1')
-
-uk_matched_potential_suppliers <- inner_join(uk_potential_suppliers, UK, by = 'bvd_id_number')
-uk_matched_potential_suppliers<- uk_matched_potential_suppliers %>% mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z")) %>% 
-  filter(!is.na(closing_date_format))
-
-rm(UK)
-
-uk_nace<- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_NACE_2/NACE GB.csv")
-uk_nace<- uk_nace %>% rename(bvd_id_number = bvdidnumber)
-uk_matched_potential_suppliers <- left_join(uk_matched_potential_suppliers, uk_nace, by = 'bvd_id_number')
-rm(uk_nace)
-
-uk_address <- read_csv("~/Dropbox/PhD/procurement_cern/data/raw/ORBIS_ADDRESSES/ADDRESS_GB.csv", skip=1)
-uk_address<- clean_names(uk_address)
-uk_address<- uk_address %>% rename(bvd_id_number = "bv_d_id_number") %>% 
-  select(bvd_id_number, postcode, city)
-
-uk_matched_potential_suppliers<- left_join(uk_matched_potential_suppliers, uk_address, by = 'bvd_id_number')
-rm(uk_address)
-uk_matched_potential_suppliers<- uk_matched_potential_suppliers %>% select(-nacerev2primarycodetextdescripti)
-number_uk_matched<- unique(uk_matched_potential_suppliers$bvd_id_number)
-
-beep()
-
-### 2.5 Putting the data togeher  --------------------------------------------
-
-
-#### 2.51 Put the data for the four countries together --------------------------------------------------------------------
-
-all_matched_potential_suppliers <- rbind(france_matched_potential_suppliers, spain_matched_potential_suppliers, italy_matched_potential_suppliers, uk_matched_suppliers)
-all_matched_potential_suppliers<- all_matched_potential_suppliers  %>% distinct()
-suppliers_bvd_list <- unique(full_panel_suppliers$bvd_id_number)
 `%notin%` <- Negate(`%in%`)
+
+
+# 2. Data preparation --------------------------------------------------------
+
+## 2.1  Load the data for suppliers and registered companies-------------------------------------------------------
+## Setting up the directories for the data
+data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+
+## Load the data matched for CERN suppliers and potential
+
+matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched suppliers
+matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" # file for matched potential suppliers
+
+all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
+
+
+suppliers_bvd_list <- unique(full_panel_suppliers$bvd_id_number)
+
 all_matched_potential_suppliers<- all_matched_potential_suppliers %>% filter(bvd_id_number %notin% suppliers_bvd_list)
 
 #all_matched_potential_suppliers<- all_matched_potential_suppliers %>% filter(matched_company_name !="NATIXIS ASSURANCES")

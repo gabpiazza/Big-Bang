@@ -2,17 +2,18 @@
 ##
 ##Script name: 01_dataprep_v2_selected countries
 ##
-##Purpose of script: Preparing the procurement data for analaysis##
+##Purpose of script: Preparing the procurement data: load the procurement data, match it to orbis and save the files
+##
 ##Author: Gabriele Piazza
 ##
-##Date Created: 2023-06-19
+##Date Created: 2024-05-19
 ##
-##Copyright (c) Gabriele Piazza, 2023
+##Copyright (c) Gabriele Piazza, 2024
 ##Email: g.piazza@lse.ac.uk 
 ##
 
 ##
-## Notes: I am now selecting a few countries only  
+## Notes: I am now selecting a fe
 ##   
 ##
 # #1.1 Install & Load packages --------------------------------------------------------
@@ -145,18 +146,13 @@ potential_suppliers<- clean_names(potential_suppliers)
 
 # I combine the datasets for both periods
 
-
-
 number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct()
 number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct()
-
 suppliers_2016_selected_variables<- suppliers_2016 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 suppliers_2021_selected_variables<- suppliers_2021 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 all_suppliers_selected_variables<- rbind(suppliers_2016_selected_variables, suppliers_2021_selected_variables)
 all_suppliers_selected_variables$vat_number<- as.character(all_suppliers_selected_variables$vat_number)
 all_suppliers_selected_variables<- all_suppliers_selected_variables %>% distinct()
-
-
 
 orders_2016 <- suppliers_2016 %>% select(-contact) %>% rename(chf_amount = sum_chf_amount)
 orders_2021<- suppliers_2021
@@ -256,10 +252,7 @@ suppliers_selected_countries <- fr_it_es_uk_orders
 # UK 
   write.csv(suppliers_uk, paste0(data_proc_dir, "suppliers_uk.csv"), row.names = FALSE)
 
- 
- 
   
-
 ### 3.2 Registered companies (potential suppliers) --------------------------
   potential_suppliers_selected_variables<- clean_names(potential_suppliers)
   potential_suppliers_selected_variables<- potential_suppliers_selected_variables %>% 
@@ -425,7 +418,6 @@ matched_potential_suppliers_orbis <- list(
   uk = matched_orbis_potential_uk
 )
 
-
 france_potential_suppliers_orbis <- process_orbis_data("france", file_paths, matched_potential_suppliers_orbis)
 italy_potential_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_potential_suppliers_orbis)
 spain_potential_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_potential_suppliers_orbis)
@@ -450,3 +442,4 @@ matched_potential_suppliers_orbis_data  <- bind_rows(france_potential_suppliers_
 saveRDS(matched_potential_suppliers_orbis_data, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data"))
 rm(matched_potential_suppliers_orbis_data)
 
+# I do the cleaning in another script
