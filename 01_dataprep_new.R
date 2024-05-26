@@ -85,23 +85,26 @@ matching_orbis_addresses<- function(data, matched_cern_firms){
     # Load the financial data
     financial_data <- read_dta(file_paths[[country]]$financial)
     
+    # Perform the joins
+    suppliers_orbis <- inner_join(matched_orbis[[country]], financial_data)
+    rm(financial_data)
+    gc()
+    
     # Load and clean the NACE data
     nace_data <- read_csv(file_paths[[country]]$nace) %>%
       rename(bvd_id_number = bvdidnumber)
+    suppliers_orbis <- left_join(suppliers_orbis, nace_data)
+    rm(nace_data)  # Remove NACE data to free up memory
+    gc()  # Run garbage collection
+    
     
     # Load and clean the address data, skipping the first row
     address_data <- read_csv(file_paths[[country]]$address, skip = 1) %>%
       clean_names() %>% 
       rename(bvd_id_number = bv_d_id_number)
     
-    # Perform the joins
-    suppliers_orbis <- inner_join(matched_orbis[[country]], financial_data)
-    rm(financial_data)
-    gc()
-    suppliers_orbis <- left_join(suppliers_orbis, nace_data)
-    rm(nace_data)  # Remove NACE data to free up memory
-    gc()  # Run garbage collection
-    
+ 
+   
     suppliers_orbis <- left_join(suppliers_orbis, address_data, by = "bvd_id_number")
     rm(address_data)  # Remove address data to free up memory
     gc()  # Run garbage collection
@@ -213,7 +216,7 @@ suppliers_selected_countries <- all_suppliers_selected_variables %>% filter(coun
 ## 4.1 Suppliers ---------------------------------------------------------
 
   
-files <- list( 
+files_suppliers <- list( 
 italy = "Export_suppliers_italy.xlsx",
 spain=  "Export_suppliers_spain.xlsx",
 france_1 =  "Export_suppliers_france_1.xlsx",
@@ -223,7 +226,7 @@ uk = "Export_suppliers_uk.xlsx"
 
 
 # Loop through the files and read each one
-for (country in names(files)){
+for (country in names(files_suppliers)){
   file_path <- paste0(matched_orbis_suppliers_dir, files[[country]])
   matched_suppliers<- read_excel(file_path)
   matched_suppliers <- matched_suppliers[!is.na(matched_suppliers$`Matched BvD ID`), ]
@@ -258,7 +261,7 @@ matching_bvd_id_function(matched_orbis_uk, suppliers_uk, "uk")
 
 ## 4.1 Potential Suppliers ---------------------------------------------------------
 
-files <- list( 
+files_potential_suppliers <- list( 
   italy = "Export_potential_suppliers_italy.xlsx",
   spain=  "Export_potential_suppliers_spain.xlsx",
   france =  "Export_potential_suppliers_france.xlsx",
@@ -266,15 +269,15 @@ files <- list(
 )
 
 # Loop through the files and read each one
-for (country in names(files)){
-  file_path <- paste0(matched_potential_suppliers_dir, files[[country]])
+for (country in names(files_potential_suppliers)){
+  file_path <- paste0(matched_potential_suppliers_dir, files_potential_suppliers[[country]])
   matched_potential_suppliers <- read_excel(file_path)
   
   # Drop rows with NA in bvd_id_number
   matched_potential_suppliers <- matched_potential_suppliers[!is.na(matched_potential_suppliers$`Matched BvD ID`), ]
   matched_potential_suppliers <- matched_potential_suppliers %>%
     rename(bvd_id_number =`Matched BvD ID`)
-  matched_potentail_suppliers<- clean_names(matched_potential_suppliers)
+  matched_potential_suppliers<- clean_names(matched_potential_suppliers)
   # Create the variable name
   variable_name <- paste0("matched_orbis_potential_", country)
   
@@ -285,18 +288,6 @@ for (country in names(files)){
 
 # 5. CERN Matching --------------------------------------------------------
 # File paths by country
-
-
-
-# Example matched Orbis data
-matched_orbis <- list(
-  france = matched_orbis_france,
-  spain = matched_orbis_spain,
-  italy = matched_orbis_italy,
-  uk = matched_orbis_uk
-)
-
-
 file_paths <- list(
   france = list(
     financial = paste0(orbis_financial_dir, "Gabriele FR.dta"),
@@ -314,18 +305,27 @@ file_paths <- list(
     address =paste0(orbis_addresses_dir ,"ADDRESS_IT.csv")
   ),
   uk = list(
-   financial = paste0(orbis_financial_dir,"Gabriele GB.dta"),
+    financial = paste0(orbis_financial_dir,"Gabriele GB.dta"),
     nace =  paste0(orbis_Nace_dir,"Nace GB_selected_variables.csv"),
     address = paste0(orbis_addresses_dir ,"ADDRESS_GB.csv")
   )
 )
+
+
 ## 5.1 Suppliers -----------------------------------------------------------
 
+# matched Orbis data
+matched_suppliers_orbis <- list(
+  france = matched_orbis_france,
+  spain = matched_orbis_spain,
+  italy = matched_orbis_italy,
+  uk = matched_orbis_uk
+)
 
-france_suppliers_orbis <- process_orbis_data("france", file_paths, matched_orbis)
-italy_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_orbis)
-spain_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_orbis)
-uk_suppliers_orbis <- process_orbis_data ("uk", file_paths, matched_orbis)
+france_suppliers_orbis <- process_orbis_data("france", file_paths, matched_suppliers_orbis)
+italy_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_suppliers_orbis)
+spain_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_suppliers_orbis)
+uk_suppliers_orbis <- process_orbis_data ("uk", file_paths, matched_suppliers_orbis)
 # combine all the datasets together
 # Ensure the column names are consistent where possible
 colnames(france_suppliers_orbis)[which(names(france_suppliers_orbis) == "country.x")] <- "country"
@@ -344,6 +344,35 @@ matched_suppliers_orbis_data <- bind_rows(france_suppliers_orbis,
                                       uk_suppliers_orbis)
 
 
+## 5.2  Potential suppliers-----------------------------------------------------------
+
+matched_potential_suppliers_orbis <- list(
+  france = matched_orbis_potential_france,
+  spain = matched_orbis_potential_spain,
+  italy = matched_orbis_potential_italy,
+  uk = matched_orbis_potential_uk
+)
+
+
+france_potential_suppliers_orbis <- process_orbis_data("france", file_paths, matched_potential_suppliers_orbis)
+italy_potential_suppliers_orbis <- process_orbis_data("italy", file_paths, matched_potential_suppliers_orbis)
+spain_potential_suppliers_orbis <- process_orbis_data("spain", file_paths, matched_potential_suppliers_orbis)
+uk_potential_suppliers_orbis <- process_orbis_data ("uk", file_paths, matched_potential_suppliers_orbis)
 
 
 
+# Ensure the column names are consistent where possible
+colnames(france_potential_suppliers_orbis)[which(names(france_potential_suppliers_orbis) == "country.x")] <- "country"
+colnames(france_potential_suppliers_orbis)[which(names(france_potential_suppliers_orbis) == "city.x")] <- "city"
+colnames(italy_potential_suppliers_orbis)[which(names(italy_potential_suppliers_orbis) == "country")] <- "country"
+colnames(italy_potential_suppliers_orbis)[which(names(italy_potential_suppliers_orbis) == "city.x")] <- "city"
+colnames(spain_potential_suppliers_orbis)[which(names(spain_potential_suppliers_orbis) == "country")] <- "country"
+colnames(spain_potential_suppliers_orbis)[which(names(spain_potential_suppliers_orbis) == "city.x")] <- "city"
+colnames(uk_potential_suppliers_orbis)[which(names(uk_potential_suppliers_orbis) == "country")] <- "country"
+colnames(uk_potential_suppliers_orbis)[which(names(uk_potential_suppliers_orbis) == "city.x")] <- "city"
+
+# Bind the dataframes together
+matched_potential_suppliers_orbis_data  <- bind_rows(france_potential_suppliers_orbis, 
+                                                italy_potential_suppliers_orbis, 
+                                                spain_potential_suppliers_orbis, 
+                                                uk_potential_suppliers_orbis)
