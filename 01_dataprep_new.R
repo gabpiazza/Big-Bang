@@ -13,8 +13,17 @@
 ##
 
 ##
-## Notes: I am now selecting a fe
-##   
+## Notes: What I do in this script is the following: 
+##   Step 1. I combine the orders data (up to 2016 and post 2016), I match them to the tech lookup
+##       and member states balance - this were kindly given to me by CSIL
+##   Step 2. I then filter and create a new data set that include only France, Italy, Spain and UK. 
+##      I do the same for the potential suppliers.
+##   Step 3. I save the files for each country, I do the same for potential suppliers. 
+##   Step 4. I then use these files to get the bvd id number from Orbis. 
+##.  Step 5. I finally use these bvd id dumber to get the Orbis Financial Data, NACE and Address - these were given to me by the libbrary
+##      Please note that there were some issues with loading the NACE data
+##    Final product: at the end of the script, you have two dataset with the orbis financial data
+##     (i) for the suppliers - matched_suppliers_orbis_data -  and (ii) registered suppliers -  this is called matched_potential_suppliers_orbis_data.
 ##
 # #1.1 Install & Load packages --------------------------------------------------------
 
@@ -171,14 +180,14 @@ CERN_orders_techlevel <- read_excel(paste0(data_raw_dir, tech_level_file))
 CERN_orders_techlevel<-clean_names(CERN_orders_techlevel)
 tech_level<-CERN_orders_techlevel %>% select(x3_digits,tech_intensity) # don't need the other columns so  am dropping
 
-## 6.3 Loading the Balance by member state lookup --------------------------------------------------
+## 3.3 Loading the Balance by member state lookup --------------------------------------------------
 #--- The issue here is that many years do not have a code
 balance_MS_file <- "balance_MS.csv"
 balance_MS <- read_csv(paste0(data_raw_dir, balance_MS_file))
 balance_MS <- clean_names(balance_MS)
 balance_MS<- balance_MS %>% rename(country=iso_code,order_date=year)
 
-## 6.4 Merging procurement data, tech lookup and balance ----------------------------------------------
+## 3.4 Merging procurement data, tech lookup and balance ----------------------------------------------
 # The changes to city names are unnecessary as I end up dropping the city name variable as I have a number of duplicates
 
 all_orders$x3_digits <- str_extract(all_orders$purchase_code, "^\\d{3}")
@@ -253,7 +262,7 @@ suppliers_selected_countries <- fr_it_es_uk_orders
   write.csv(suppliers_uk, paste0(data_proc_dir, "suppliers_uk.csv"), row.names = FALSE)
 
   
-### 3.2 Registered companies (potential suppliers) --------------------------
+### 3.5 Registered companies (potential suppliers) --------------------------
   potential_suppliers_selected_variables<- clean_names(potential_suppliers)
   potential_suppliers_selected_variables<- potential_suppliers_selected_variables %>% 
     select(suppliername, country)
@@ -406,7 +415,8 @@ colnames(uk_suppliers_orbis)[which(names(uk_suppliers_orbis) == "city.x")] <- "c
 matched_suppliers_orbis_data <- bind_rows(france_suppliers_orbis, 
                                       italy_suppliers_orbis, 
                                       spain_suppliers_orbis, 
-                                      uk_suppliers_orbis)
+                                      uk_suppliers_orbis) %>% 
+  select(-city.y, -country.y)
 saveRDS(matched_suppliers_orbis_data, paste0(data_proc_dir, "matched_suppliers_orbis_data"))
 rm(matched_suppliers_orbis_data)
 ## 5.2  Potential suppliers-----------------------------------------------------------
@@ -437,7 +447,8 @@ colnames(uk_potential_suppliers_orbis)[which(names(uk_potential_suppliers_orbis)
 matched_potential_suppliers_orbis_data  <- bind_rows(france_potential_suppliers_orbis, 
                                                 italy_potential_suppliers_orbis, 
                                                 spain_potential_suppliers_orbis, 
-                                                uk_potential_suppliers_orbis)
+                                                uk_potential_suppliers_orbis) %>% 
+  select(-city.y, -country.y)
 
 saveRDS(matched_potential_suppliers_orbis_data, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data"))
 rm(matched_potential_suppliers_orbis_data)
