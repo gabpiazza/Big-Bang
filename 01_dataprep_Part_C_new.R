@@ -3,7 +3,7 @@
 #' author: Gabriele Piazza
 #' date: 2023-06-27
 #' ---
-#uploaded due to size reasons 
+
 
 
 # 1.  Set up --------------------------------------------------------------
@@ -19,11 +19,7 @@ invisible(lapply(need, library, character.only=T)) # load needed packages
 options(scipen = 999)
 
 ## 1.2 Create functions ----------------------------------------------------
-
-
 `%notin%` <- Negate(`%in%`)
-
-
 # 2. Data preparation --------------------------------------------------------
 
 ## 2.1  Load the data for suppliers and registered companies-------------------------------------------------------
@@ -31,23 +27,17 @@ options(scipen = 999)
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 
-## Load the data matched for CERN suppliers and potential
-
+## file names for CERN suppliers and potential
 matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched suppliers
-matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" # file for matched potential suppliers
-
+matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
+potential_suppliers_registration <- "22_10_31_potential_suppliers.csv"
+suppliers_registration <- "suppliers_registration_year.csv"
 
 
-suppliers_bvd_list <- unique(full_panel_suppliers$bvd_id_number)
-
-all_matched_potential_suppliers<- all_matched_potential_suppliers %>% filter(bvd_id_number %notin% suppliers_bvd_list)
-
-#all_matched_potential_suppliers<- all_matched_potential_suppliers %>% filter(matched_company_name !="NATIXIS ASSURANCES")
-number_matched_potential_suppliers <- unique(all_matched_potential_suppliers$bvd_id_number) # this gives me 761 companies for 4 countries
 
 # #### 2.52 Loading all the registrations  --------------------------------
-cern_registration_procurement <- read_csv(here("Analysis","data_raw", "22_10_31_potential_suppliers.csv"))
+cern_registration_procurement <- read_csv(paste0(data_raw_dir, "22_10_31_potential_suppliers.csv"))
 cern_registration_procurement<- clean_names(cern_registration_procurement)
 cern_registration_procurement<- cern_registration_procurement %>% 
   rename(company_name = suppliername)
