@@ -360,8 +360,8 @@ for (country in names(files_potential_suppliers)){
 }
 
 
-# 5. CERN Matching --------------------------------------------------------
-# File paths by country
+# 5. Matching to Orbis Data --------------------------------------------------------
+# File paths by country for Orbis data
 file_paths <- list(
   france = list(
     financial = paste0(orbis_financial_dir, "Gabriele FR.dta"),
@@ -417,7 +417,10 @@ matched_suppliers_orbis_data <- bind_rows(france_suppliers_orbis,
                                       spain_suppliers_orbis, 
                                       uk_suppliers_orbis) %>% 
   select(-city.y, -country.y)
+
+number_matched_suppliers <- unique(matched_suppliers_orbis_data$bvd_id_number) # this gives me 1711 companies for 4 countries
 saveRDS(matched_suppliers_orbis_data, paste0(data_proc_dir, "matched_suppliers_orbis_data"))
+
 rm(matched_suppliers_orbis_data)
 ## 5.2  Potential suppliers-----------------------------------------------------------
 
@@ -451,6 +454,8 @@ matched_potential_suppliers_orbis_data  <- bind_rows(france_potential_suppliers_
   select(-city.y, -country.y)
 
 saveRDS(matched_potential_suppliers_orbis_data, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data"))
+number_matched_potential_suppliers <- unique(matched_potential_suppliers_orbis_data$bvd_id_number) # this gives me 950 companies for 4 countries
+
 rm(matched_potential_suppliers_orbis_data)
 
 # I do the cleaning in another script

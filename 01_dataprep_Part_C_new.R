@@ -20,9 +20,10 @@ options(scipen = 999)
 
 ## 1.2 Create functions ----------------------------------------------------
 `%notin%` <- Negate(`%in%`)
-# 2. Data preparation --------------------------------------------------------
 
-## 2.1  Load the data for suppliers and registered companies-------------------------------------------------------
+# 2. Load the data --------------------------------------------------------
+
+## 2.1 Setting up the directory -------------------------------------------------------
 ## Setting up the directories for the data
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
@@ -31,16 +32,127 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched suppliers
 matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
-potential_suppliers_registration <- "22_10_31_potential_suppliers.csv"
-suppliers_registration <- "suppliers_registration_year.csv"
+potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
+suppliers_registration_file <- "suppliers_registration_year.csv"
 
 
 
-# #### 2.52 Loading all the registrations  --------------------------------
-cern_registration_procurement <- read_csv(paste0(data_raw_dir, "22_10_31_potential_suppliers.csv"))
-cern_registration_procurement<- clean_names(cern_registration_procurement)
-cern_registration_procurement<- cern_registration_procurement %>% 
+# #### 2.2 Loading the data  --------------------------------
+## Registration
+### Suppliers
+suppliers_registration <- read_csv(paste0(data_raw_dir, suppliers_registration_file)) %>% 
+  clean_names() %>% 
+  rename(company_name = supplier_name)
+
+### Registered
+potential_registration <- read_csv(paste0(data_raw_dir, potential_suppliers_registration_file)) %>% 
+  clean_names() %>% 
   rename(company_name = suppliername)
+### All Orders with tech lookup and balanc e
+all_orders_tech_balance<- readRDS(paste0(data_proc_dir, all_orders_tech_balance_file))
+
+## Matched Orbis Data
+### Suppliers
+matched_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_suppliers_orbis_file))
+### Registered
+matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
+
+
+
+
+# 3. Data Manipulation  ---------------------------------------------------
+
+
+## 3.1 Matched suppliers -------------------------------------------------------
+
+#Matke changes to the year variable
+# This follows the convention explained in the Kalemli-Ozcan paper
+#If the closing date is after or on June 1st, the current year is assigned (if CLOSEDATE is 4th of August, 2003, the year is 2003). Otherwise, 
+#the previous year is assigned (if CLOSEDATE is 25th of May, 2003, the year is 2002)
+
+matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
+  mutate(closing_date_format = str_remove(closing_date,"T00:00:00.000Z" ),
+        date_closing = as.Date(closing_date_format),
+        year_orbis = year(closing_date_format),
+        month_orbis = month(closing_date_format), 
+        year= case_when (month_orbis <6 ~ year_orbis -1, 
+                         month_orbis >5 ~ year_orbis),
+        matching_year = year)
+
+## Create BVD ID lookup 
+bvd_id_lookup <- matched_suppliers_orbis_data %>% 
+  select(bvd_id_number, company_name) %>% distinct()# I need this to fill the missing year registration
+
+# I merge the orders file and the registration year 
+all_orders_tech_balance_registration <- all_orders_tech_balance %>% 
+  left_join(suppliers_registration) %>% 
+  clean_names()
+
+all_orders_tech_balance_registration<- all_orders_tech_balance_registration %>% 
+  left_join(bvd_id_lookup)
+
+# There are some NAs for registration year 
+all_orders_tech_balance_registration <- all_orders_tech_balance_registration %>%
+  group_by(bvd_id_number) %>% # Group the data by 'bvd_id_number'
+  # Create or modify variables within each group
+  mutate(
+    # Create a logical variable 'has_non_missing' that checks if there's at least one non-missing 'registration_year'
+    has_non_missing = !all(is.na(registration_year)),
+    # Modify 'registration_year' based on the condition of 'has_non_missing'
+    registration_year = ifelse(
+      has_non_missing, 
+      # If 'has_non_missing' is TRUE, replace NA values or values greater than the minimum 'registration_year' in the group
+      replace(registration_year, 
+        is.na(registration_year) | registration_year > min(registration_year, na.rm = TRUE), 
+        min(registration_year, na.rm = TRUE)
+      ), # If 'has_non_missing' is FALSE (all values are NA), set 'registration_year' to NA
+      NA)
+  ) %>% # Ungroup the data to remove the grouping structure
+  ungroup() %>% # Select all columns except 'has_non_missing' to remove the temporary variable
+  select(-has_non_missing)
+
+# I create a matching year variable before mat 
+all_orders_tech_balance_registration$matching_year <- all_orders_tech_balance_registration$order_date  
+
+## Merge orders and orbis data
+matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
+  left_join(all_orders_tech_balance_registration, by =c("bvd_id_number", "matching_year")) 
+
+matched_suppliers_orbis_selected <- matched_suppliers_orbis_data %>% 
+  select(bvd_id_number, order_date, chf_amount, tech_intensity, registration_year, order_number, code_2_digits) %>% 
+  distinct() %>% 
+  group_by(bvd_id_number, order_date) %>% 
+  mutate(total_chf_amount_year = sum(chf_amount), 
+         max_tech = max(tech_intensity),
+         number_orders_year = n_distinct(order_number),
+         code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)])) %>%
+  distinct() %>% 
+  drop_na(total_chf_amount_year) %>% 
+  select(-tech_intensity, -chf_amount,-order_number) %>% 
+  distinct()
+
+matched_suppliers_orbis_selected<- matched_suppliers_orbis_selected %>% 
+  select(bvd_id_number, order_date, registration_year, total_chf_amount_year, max_tech, number_orders_year, code_2_digits) %>% 
+  distinct() %>% 
+  group_by(bvd_id_number) %>% 
+  mutate(first_order= min(order_date),last_order = max(order_date), total_orders = sum(number_orders_year), 
+         total_orders_amount = sum(total_chf_amount_year),
+         first_order_amount = total_chf_amount_year[which.min(order_date)],
+         first_order_tech = max_tech[which.min(order_date)],
+         code_2_digits = code_2_digits[which.min(order_date)],
+         registration_first_order = first_order -registration_year) %>% 
+  select(bvd_id_number, order_date, total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
+         first_order_amount, first_order_tech, registration_first_order, registration_year, code_2_digits)%>% 
+  distinct()
+
+matched_suppliers
+
+
+cern_orbis_matched_suppliers<- cern_orbis_matched_suppliers %>% select(-company_name.x, -city.x, -matched_company_name) %>% distinct()
+cern_orbis_matched_suppliers$registration_year<- as.numeric(cern_orbis_matched_suppliers$registration_year)
+
+
+
 all_matched_potential_suppliers<- left_join(all_matched_potential_suppliers, cern_registration_procurement)
 cern_registration_procurement_suppliers<- cern_registration_procurement %>% 
   select(suppliercode) %>% distinct()
