@@ -87,7 +87,7 @@ bvd_id_lookup <- matched_suppliers_orbis_data %>%
 all_orders_tech_balance_registration <- all_orders_tech_balance %>% 
   left_join(suppliers_registration) %>% 
   clean_names()
-
+# I merge the new file with the bvd id lookup
 all_orders_tech_balance_registration<- all_orders_tech_balance_registration %>% 
   left_join(bvd_id_lookup)
 
@@ -111,21 +111,30 @@ all_orders_tech_balance_registration <- all_orders_tech_balance_registration %>%
   ungroup() %>% # Select all columns except 'has_non_missing' to remove the temporary variable
   select(-has_non_missing)
 
-# I create a matching year variable before mat 
-all_orders_tech_balance_registration$matching_year <- all_orders_tech_balance_registration$order_date  
+# I create a matching year variable before matching to the orbis data
+all_orders_tech_balance_registration$matching_year <- all_orders_tech_balance_registration$order_date 
+
+check_order_data <- all_orders_tech_balance_registration %>% 
+  select(bvd_id_number, order_date) %>% 
+  distinct()
 
 ## Merge orders and orbis data
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
   left_join(all_orders_tech_balance_registration, by =c("bvd_id_number", "matching_year")) 
+check<- matched_suppliers_orbis_data %>%
+  select(bvd_id_number, order_date) %>% 
+  distinct()
 
 matched_suppliers_orbis_selected <- matched_suppliers_orbis_data %>% 
-  select(bvd_id_number, order_date, chf_amount, tech_intensity, registration_year, order_number, code_2_digits) %>% 
+  select(bvd_id_number, order_date, chf_amount, tech_intensity, registration_year, order_number, code_2_digits, subroject, subproject_1) %>% 
   distinct() %>% 
   group_by(bvd_id_number, order_date) %>% 
   mutate(total_chf_amount_year = sum(chf_amount), 
          max_tech = max(tech_intensity),
          number_orders_year = n_distinct(order_number),
-         code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)])) %>%
+         code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]),
+         subroject_max = subroject[which.max(chf_amount)],
+         subroject_max_1 = subroject[which.max(chf_amount)])%>%
   distinct() %>% 
   drop_na(total_chf_amount_year) %>% 
   select(-tech_intensity, -chf_amount,-order_number) %>% 
