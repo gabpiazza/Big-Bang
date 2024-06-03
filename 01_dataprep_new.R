@@ -155,8 +155,8 @@ potential_suppliers<- clean_names(potential_suppliers)
 
 # I combine the datasets for both periods
 
-number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct()
-number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct()
+# number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct()
+# number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct()
 suppliers_2016_selected_variables<- suppliers_2016 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 suppliers_2021_selected_variables<- suppliers_2021 %>% select(supplier_name, country, city, vat_number, registration_number, supplier_code)
 all_suppliers_selected_variables<- rbind(suppliers_2016_selected_variables, suppliers_2021_selected_variables)
@@ -170,8 +170,6 @@ all_orders<-rbind(orders_2016, orders_2021)
 all_orders$order_date<-as.numeric(all_orders$order_date)
 all_orders<- clean_names(all_orders)
 all_orders<- all_orders %>% rename(registration_year = registration_supplier)
-number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct() # 2,284 suppliers
-number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct() # 21,261 orders
 
 ## 3.2 Loading the tech_lookup given by CSIL -----------------------------------------------------
 #-- This might be redundant as companies might be assigned different codes
@@ -221,6 +219,8 @@ all_orders_tech_balance<- all_orders_tech_balance %>%
                                TRUE ~0))
 selected_countries <- c("IT", "GB", "ES", "FR")
 fr_it_es_uk_orders<- all_orders_tech_balance %>% filter(country %in% selected_countries)
+number_suppliers_cern_selected_countries <- fr_it_es_uk_orders %>% select(supplier_code) %>% distinct() # 2,284 suppliers
+number_orders_cern_selected_countries <- fr_it_es_uk_orders %>% select(order_number) %>% distinct() # 21,261 orders
 
 saveRDS(all_orders_tech_balance,paste0(data_proc_dir, "all_orders_tech_balance"))
 saveRDS(fr_it_es_uk_orders, paste0(data_proc_dir, "fr_it_es_uk_orders"))

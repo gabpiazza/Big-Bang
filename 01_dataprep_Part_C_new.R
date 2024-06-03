@@ -83,7 +83,8 @@ matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>%
 bvd_id_lookup <- matched_suppliers_orbis_data %>% 
   select(bvd_id_number, company_name) %>% distinct()# I need this to fill the missing year registration
 
-# I merge the orders file and the registration year 
+# I merge the orders file and the registration year: Is this necessary
+
 all_orders_tech_balance_registration <- all_orders_tech_balance %>% 
   left_join(suppliers_registration) %>% 
   clean_names()
@@ -113,24 +114,26 @@ all_orders_tech_balance_registration <- all_orders_tech_balance_registration %>%
 
 # I create a matching year variable before matching to the orbis data
 all_orders_tech_balance_registration$matching_year <- all_orders_tech_balance_registration$order_date 
-
-check_order_data <- all_orders_tech_balance_registration %>% 
-  select(bvd_id_number, order_date) %>% 
-  distinct()
+all_orders_tech_balance_registration_selected_countries<- all_orders_tech_balance_registration %>% 
+  filter(country %in% c("ES", "FR", "IT", "GB")) %>% 
+  filter(!is.na(bvd_id_number))
+check_orders<- all_orders_tech_balance_registration_selected_countries %>% select(bvd_id_number, matching_year, order_date) %>% 
+distinct()
 
 ## Merge orders and orbis data
-matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
-  left_join(all_orders_tech_balance_registration, by =c("bvd_id_number", "matching_year")) 
-check<- matched_suppliers_orbis_data %>%
-  select(bvd_id_number, order_date) %>% 
+matched_suppliers_orbis_data_test<- matched_suppliers_orbis_data %>% 
+  left_join(all_orders_tech_balance_registration_selected_countries, by =c("bvd_id_number", "matching_year")) 
+check<- matched_suppliers_orbis_data_test %>%
+  select(bvd_id_number, matching_year,order_date) %>% 
   distinct()
+
 
 matched_suppliers_orbis_selected <- matched_suppliers_orbis_data %>% 
   select(bvd_id_number, order_date, chf_amount, tech_intensity, registration_year, order_number, code_2_digits, subroject, subproject_1) %>% 
   distinct() %>% 
   group_by(bvd_id_number, order_date) %>% 
   mutate(total_chf_amount_year = sum(chf_amount), 
-         max_tech = max(tech_intensity),
+         max_tech = max(tech_level),# This is wrong. I should first match 
          number_orders_year = n_distinct(order_number),
          code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]),
          subroject_max = subroject[which.max(chf_amount)],
