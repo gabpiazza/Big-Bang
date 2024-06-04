@@ -21,6 +21,29 @@ options(scipen = 999)
 ## 1.2 Create functions ----------------------------------------------------
 `%notin%` <- Negate(`%in%`)
 
+# Define the function to split the data frame into custom parts and write to CSV
+split_and_write_csv <- function(data, split_size, output_dir) {
+  # Calculate the number of rows in each subset
+  total_rows <- nrow(data)
+  num_splits <- ceiling(total_rows / split_size)
+  
+  # Loop through to create subsets and write to CSV
+  for (i in 1:num_splits) {
+    start <- (i - 1) * split_size + 1
+    end <- min(i * split_size, total_rows)
+    
+    # Subset the data
+    subset_data <- data[start:end, ]
+    
+    # Define the file name
+    file_name <- paste0("patent_lookup_subset_", i, ".csv")
+    file_path <- here(output_dir, file_name)
+    
+    # Write the subset to a CSV file
+    write.csv(subset_data, file_path, row.names = FALSE)
+  }
+}
+
 # 2. Load the data --------------------------------------------------------
 
 ## 2.1 Setting up the directory -------------------------------------------------------
@@ -33,6 +56,7 @@ matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched
 matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
 potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
+incorporation_suppliers_file <- "Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"
 # suppliers_registration_file <- "suppliers_registration_year.csv"
 
 
@@ -53,6 +77,13 @@ matched_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_suppliers_o
 ### Registered
 matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
 
+incorporation_date<-  read_excel(paste0(data_raw_dir,"Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"),  sheet = "Results", 
+                                col_types = c("text","text", "date", "text", "text", "numeric"))
+
+incorporation_date<- incorporation_date %>% select(-'Column1',-"Company name Latin alphabet",-'Branch indicator') %>% clean_names() %>% 
+  rename(bvd_id_number = bv_d_id_number) %>% 
+  mutate(incorporation_year = year(date_of_incorporation)) %>% 
+  select(-date_of_incorporation)
 
 
 
@@ -151,21 +182,6 @@ matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>%
 
 
 
-# matched_suppliers_orbis_selected<- matched_suppliers_orbis_selected %>% 
-#   select(bvd_id_number, order_date, registration_year, total_chf_amount_year, max_tech, number_orders, code_2_digits, subroject_max, subroject_max_1) %>% 
-#   distinct() %>% 
-#   group_by(bvd_id_number) %>% 
-#   mutate(first_order= min(order_date),last_order = max(order_date), total_orders = sum(number_orders),
-#          total_orders_amount = sum(total_chf_amount_year),
-#          first_order_amount = total_chf_amount_year[which.min(order_date)],
-#          first_order_tech = max_tech[which.min(order_date)],
-#          code_2_digits = code_2_digits[which.min(order_date)],
-#          registration_first_order = first_order -as.numeric(registration_year))%>% 
-#   select(bvd_id_number, order_date, total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
-#          first_order_amount, first_order_tech, registration_first_order, code_2_digits, subroject_max, subroject_max_1)%>% 
-#   distinct() %>% 
-#   ungroup()
-
 
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% select( -identifier, -score, -nacerev2mainsection, 
                                                                          -nacerev2mainsection, -nacerev2corecode4digits,-country_iso_code, 
@@ -253,18 +269,18 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
 
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
+matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_date)
+
+companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number)
+
+#Create the lookup for patents
+
+patent_bvd_lookup <- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
+  select(bvd_id_number) %>% distinct()
 
 
 
-unconsolidated_accounts<- unconsolidated_accounts %>% 
-  group_by(bvd_id_number, year) %>% 
-  filter( ebitda == max(ebitda))%>% # if multiple ebitda per year, I get the maximum
-  select( -consolidation_code, -X, company_name, -matched_company_name, -city.x, -nacerev2primarycodes, -filing_type) %>% 
-  ungroup() %>% 
-  distinct()
-
-
-
+subse
 
 # ### 2.53 I create the date variable -------------------------------------
 all_matched_potential_suppliers<-all_matched_potential_suppliers %>% 
