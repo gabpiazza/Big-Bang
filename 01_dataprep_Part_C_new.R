@@ -57,6 +57,7 @@ matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_dat
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
 potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
 incorporation_suppliers_file <- "Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"
+supplier_patent_lookup_dir <- paste0(data_proc_dir, "suppliers_patent_lookup")
 # suppliers_registration_file <- "suppliers_registration_year.csv"
 
 
@@ -261,7 +262,6 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
   ungroup() %>% 
   distinct()
 
-check<- matched_suppliers_orbis_data_vars_unconsolidated %>% filter(year_before_order<=0)
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
@@ -269,6 +269,8 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
 
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
+
+## Add the incorporation year
 matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_date)
 
 companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number)
@@ -278,9 +280,9 @@ companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsoli
 patent_bvd_lookup <- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
   select(bvd_id_number) %>% distinct()
 
+split_and_write_csv(patent_bvd_lookup, 15, supplier_patent_lookup_dir)
 
 
-subse
 
 # ### 2.53 I create the date variable -------------------------------------
 all_matched_potential_suppliers<-all_matched_potential_suppliers %>% 
