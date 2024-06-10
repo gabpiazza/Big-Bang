@@ -280,7 +280,7 @@ companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsoli
 patent_bvd_lookup <- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
   select(bvd_id_number) %>% distinct()
 
-split_and_write_csv(patent_bvd_lookup, 15, supplier_patent_lookup_dir)
+split_and_write_csv(patent_bvd_lookup, 50, supplier_patent_lookup_dir)
 
 
 
