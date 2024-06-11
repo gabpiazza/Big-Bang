@@ -47,7 +47,7 @@ split_and_write_csv <- function(data, split_size, output_dir) {
 # 2. Load the data --------------------------------------------------------
 
 ## 2.1 Setting up the directory -------------------------------------------------------
-## Setting up the directories for the data
+## Setting up the directories for the data folders 
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 
@@ -150,26 +150,26 @@ all_orders_tech_balance_selected_countries_vars<- all_orders_tech_balance_select
   filter(!is.na(order_date)) %>% 
   group_by(bvd_id_number, order_date) %>% 
   mutate(
-    total_chf_amount_year = sum(chf_amount, na.rm = TRUE),
-    max_tech = max(tech_level, na.rm = TRUE),
-    number_orders = n_distinct(order_number),
-    code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]),
-    subroject_max = ifelse(all(is.na(subroject)), NA, subroject[which.max(chf_amount)]),
-    subroject_max_1 = ifelse(all(is.na(subroject)), NA, subproject_1[which.max(chf_amount)]),
+    total_chf_amount_year = sum(chf_amount, na.rm = TRUE),# this sums up all the orders by year and bvdid
+    max_tech = max(tech_level, na.rm = TRUE), # this peaks the highest tech-level - (1 = high-tech, 0 = low-tech)
+    number_orders = n_distinct(order_number), # this is the number of orders per year
+    code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]), # this picks the code for the largest order in a year
+    subroject_max = ifelse(all(is.na(subroject)), NA, subroject[which.max(chf_amount)]),# this does the same thing as above for subroject
+    subroject_max_1 = ifelse(all(is.na(subroject)), NA, subproject_1[which.max(chf_amount)]), # this does the same thing as above for subroject_1
   ) %>%
   distinct() %>% 
   drop_na(total_chf_amount_year) %>% 
   select(-tech_intensity, -chf_amount, -order_number) %>% 
   distinct() %>% ungroup() %>% 
-  group_by(bvd_id_number) %>% 
-  mutate(first_order= min(order_date),last_order = max(order_date), total_orders = sum(number_orders),
-         total_orders_amount = sum(total_chf_amount_year),
-         first_order_amount = total_chf_amount_year[which.min(order_date)],
-         first_order_tech = max_tech[which.min(order_date)],
-         code_2_digits = code_2_digits[which.min(order_date)],
-         subproject_first_year = subroject_max[which.min(order_date)], 
-         subproject_1_first_year = subroject_max_1[which.min(order_date)],
-         registration_first_order = first_order -as.numeric(registration_year),
+  group_by(bvd_id_number) %>% # the following code creates the variable by bvd_id_number
+  mutate(first_order= min(order_date),last_order = max(order_date), total_orders = sum(number_orders),# creating the first order_date, the last_order, and the total number of orders
+         total_orders_amount = sum(total_chf_amount_year), # this creates the amount for all the orders
+         first_order_amount = total_chf_amount_year[which.min(order_date)], # this creates the amount for the first order
+         first_order_tech = max_tech[which.min(order_date)],# this creates the tech_eve for the first order
+         code_2_digits = code_2_digits[which.min(order_date)], # this creates the code_2 digits for the first_order 
+         subproject_first_year = subroject_max[which.min(order_date)], # this creates the subproject for the first year/order
+         subproject_1_first_year = subroject_max_1[which.min(order_date)], # this creates the subproject for year 1
+         registration_first_order = first_order -as.numeric(registration_year), # this creates the registration for the first order
          matching_year = order_date)%>% 
   select(bvd_id_number, order_date, matching_year, registration_year, total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
          first_order_amount, first_order_tech, registration_first_order, code_2_digits, subproject_first_year, subproject_1_first_year)%>% 
@@ -177,13 +177,13 @@ all_orders_tech_balance_selected_countries_vars<- all_orders_tech_balance_select
   ungroup()
   
 ## Merge orders and orbis data
-matched_suppliers_orbis_data$matching_year <- matched_suppliers_orbis_data$year
+matched_suppliers_orbis_data$matching_year <- matched_suppliers_orbis_data$year# this creates the matching year
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
   left_join(all_orders_tech_balance_selected_countries_vars, by =c("bvd_id_number", "matching_year")) 
 
 
 
-
+# getting rid of all the variables that are not needed
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% select( -identifier, -score, -nacerev2mainsection, 
                                                                          -nacerev2mainsection, -nacerev2corecode4digits,-country_iso_code, 
                                                                         -nacerev2secondarycodes,  -fax_number, -region_in_country,
@@ -193,50 +193,44 @@ matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% select( -identif
 
 
 
-matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data %>% 
+matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data %>% # As there are NAs for all the years, I fill all the missing years  
   group_by(bvd_id_number) %>% fill(nacerev2primarycodes, registration_year, registration_first_order,
                                    total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
                                    first_order_amount, first_order_tech, registration_first_order,  subproject_first_year, subproject_1_first_year) %>% 
   ungroup() %>% 
   distinct()
 
-
-
-
-
 saveRDS(matched_suppliers_orbis_data_vars, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars"))
 
-
-
 # I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2. I want just the initial letters. 
-
+# Add the difference between consolidated and unconsolidated from the paper 
 matched_suppliers_orbis_data_vars$consolidation_l <- substr(matched_suppliers_orbis_data_vars$consolidation_code,1,1)
 matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars %>% 
   filter(consolidation_l =="U") %>% distinct()
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
-  mutate(first_year = min(year),
-         last_year = max(year),
-         order_after_last_orbis = last_year<first_order)
+  mutate(first_year = min(year),# this gets the first year for which you have orbis data
+         last_year = max(year), # this gets the last year for which you have orbis data
+         order_after_last_orbis = last_year<first_order) # this says whether the last year for which I have data, is before the first order. 
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated%>% 
   group_by(bvd_id_number, year) %>% 
-  filter( ebitda == max(ebitda))%>% # if multiple ebitda per year, I get the maximum
-  select( -consolidation_code, -matched_company_name, -nacerev2primarycodes) %>% 
+  filter(ebitda == max(ebitda))%>% # if multiple ebitda per year, I get the maximum - I need to explain why I do this. 
+  select(-consolidation_code, -matched_company_name, -nacerev2primarycodes) %>% 
   ungroup() %>% 
   distinct()
 
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>%
   group_by(bvd_id_number) %>% 
-  mutate(year_after_order = last_year - first_order,
-         year_before_order = first_order -first_year) %>% 
+  mutate(year_after_order = last_year - first_order, # This calculates how many years you have after the first order
+         year_before_order = first_order -first_year) %>%  # This calculates how many years before the order. 
   ungroup() %>% 
-  distinct()
+  distinct() 
 
 
 matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars_unconsolidated %>%
-  group_by(bvd_id_number) %>%
+  group_by(bvd_id_number) %>% # This populates those variables that are constant across years 
   mutate(first_order = ifelse(!is.na(first_order), first_order, last(na.omit(first_order))),
          first_order_amount = ifelse(!is.na(first_order_amount), first_order_amount, last(na.omit(first_order_amount))),
          first_order_tech = ifelse(!is.na(first_order_tech), first_order_tech, last(na.omit(first_order_tech))),
@@ -253,9 +247,9 @@ matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data
          year_before_order = ifelse(!is.na(year_before_order), year_before_order, last(na.omit(year_before_order)))) %>%
   ungroup()
 
-number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number)
+number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number) # this gives 1494 companies. 
 # I now create some variables for years before and after order - I want to see whether there is data  pre and post treatment 
-matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>%
+matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% # this might be a repetition
   group_by(bvd_id_number) %>% 
   mutate(year_after_order = last_year - first_order,
          year_before_order = first_order -first_year) %>% 
@@ -265,7 +259,7 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
-         -city_native, -telephone_number, -address_type, -date_closing, -closing_date_format) %>% distinct()
+         -city_native, -telephone_number, -address_type, -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
 
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
