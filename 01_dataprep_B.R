@@ -11,7 +11,7 @@
 ## 1.1 Install & Load packages --------------------------------------------------------
 
 # some setup: a cheeky little bit of code to check and install packages
-need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate") # list packages needed
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate", "readxl") # list packages needed
 have <- need %in% rownames(installed.packages()) # checks packages you have
 if(any(!have)) install.packages(need[!have]) # install missing packages
 invisible(lapply(need, library, character.only=T)) # load needed packages
@@ -20,6 +20,40 @@ options(scipen = 999)
 
 ## 1.2 Create functions ----------------------------------------------------
 `%notin%` <- Negate(`%in%`)
+
+# Function to read the "results" sheet from an Excel file, used for the orbis data
+read_results_sheet <- function(file) {
+  read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 5)))
+}
+
+# Function to handle different date formats and serial numbers
+convert_to_year <- function(x) {
+  # If it's a year, return as is
+  if (nchar(x) == 4 && grepl("^[0-9]{4}$", x)) {
+    return(as.numeric(x))
+  }
+  # If it's a numeric value but not a year, attempt to convert to date
+  if (grepl("^[0-9]+$", x)) {
+    # Try converting to date from origin (Excel's origin is "1899-12-30")
+    date_value <- as.Date(as.numeric(x), origin = "1899-12-30")
+    # Check if the conversion resulted in a reasonable year
+    if (year(date_value) > 1800 && year(date_value) < 2100) {
+      return(year(date_value))
+    } else {
+      # If not a reasonable date, return NA
+      return(NA)
+    }
+  }
+  # If it's a date in day-month-year format, convert it
+  if (grepl("/", x)) {
+    parsed_date <- dmy(x)
+    if (!is.na(parsed_date)) {
+      return(year(parsed_date))
+    }
+  }
+  # Default case for other formats
+  return(NA)
+}
 
 # Define the function to split the data frame into custom parts and write to CSV
 split_and_write_csv <- function(data, split_size, output_dir) {
@@ -44,6 +78,7 @@ split_and_write_csv <- function(data, split_size, output_dir) {
   }
 }
 
+
 # 2. Load the data --------------------------------------------------------
 
 ## 2.1 Setting up the directory -------------------------------------------------------
@@ -56,9 +91,12 @@ matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched
 matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
 potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
-incorporation_suppliers_file <- "Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"
+
+
 supplier_patent_lookup_dir <- paste0(data_proc_dir, "suppliers_patent_lookup")
 incoporation_size_nace_dir <- paste0(data_proc_dir, "Incorporation_size_nace_activity_lookup")
+incorporation_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_suppliers/")
+incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE)
 # suppliers_registration_file <- "suppliers_registration_year.csv"
 
 
@@ -79,13 +117,22 @@ matched_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_suppliers_o
 ### Registered
 matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
 
-incorporation_date<-  read_excel(paste0(data_raw_dir,"Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"),  sheet = "Results", 
-                                col_types = c("text","text", "date", "text", "text", "numeric"))
-
-incorporation_date<- incorporation_date %>% select(-'Column1',-"Company name Latin alphabet",-'Branch indicator') %>% clean_names() %>% 
+incorporation_nace_size_list <- lapply(incorporation_suppliers_file,read_results_sheet)
+incorporation_nace_size_data<- do.call(rbind, incorporation_nace_size_list)
+incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') %>%
+  clean_names() %>% 
   rename(bvd_id_number = bv_d_id_number) %>% 
-  mutate(incorporation_year = year(date_of_incorporation)) %>% 
-  select(-date_of_incorporation)
+  # Identify and process year-only entries
+  mutate(
+    date_of_incorporation = as.character(date_of_incorporation),
+    incorporation_year = sapply(date_of_incorporation, convert_to_year))
+# incorporation_date<-  read_excel(paste0(data_raw_dir,"Export 11_07_2023 13_43_suppliers_incorporation_date.xlsx"),  sheet = "Results", 
+#                                 col_types = c("text","text", "date", "text", "text", "numeric"))
+# 
+# incorporation_date<- incorporation_date %>% select(-'Column1',-"Company name Latin alphabet",-'Branch indicator') %>% clean_names() %>% 
+#   rename(bvd_id_number = bv_d_id_number) %>% 
+#   mutate(incorporation_year = year(date_of_incorporation)) %>% 
+#   select(-date_of_incorporation)
 
 
 
@@ -280,13 +327,17 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
 # Create lookup for incorporation, size, nace and activity 
+## this is then used to create the incorporation_nace_size_data
 
 incorporation_size_lookup <- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(bvd_id_number) %>% distinct()
 split_and_write_csv(incorporation_size_lookup, 750, incoporation_size_nace_dir)
 
-## Add the incorporation year
-matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_date)
+
+
+
+## Add the incorporation year, nace, size and actviity
+matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_nace_size_data)
 
 companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number)
 
