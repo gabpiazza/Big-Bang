@@ -1,0 +1,171 @@
+#' ---
+#' title: 01_dataprep_C
+#' author: Gabriele Piazza
+#' date: 2024-06-01
+#' Description: This script creates the potential suppliers dataset that includes information from Orbis
+#' including financials, patents and other characteristics. 
+
+# 1.  Set up --------------------------------------------------------------
+
+## 1.1 Install & Load packages --------------------------------------------------------
+
+# some setup: a cheeky little bit of code to check and install packages
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate", "readxl") # list packages needed
+have <- need %in% rownames(installed.packages()) # checks packages you have
+if(any(!have)) install.packages(need[!have]) # install missing packages
+invisible(lapply(need, library, character.only=T)) # load needed packages
+
+options(scipen = 999)
+
+## 1.2 Create functions ----------------------------------------------------
+`%notin%` <- Negate(`%in%`)
+
+# Function to read the "results" sheet from an Excel file, used for the orbis data
+read_results_sheet <- function(file) {
+  read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 5)))
+}
+
+# Function to handle different date formats and serial numbers
+convert_to_year <- function(x) {
+  # If it's a year, return as is
+  if (nchar(x) == 4 && grepl("^[0-9]{4}$", x)) {
+    return(as.numeric(x))
+  }
+  # If it's a numeric value but not a year, attempt to convert to date
+  if (grepl("^[0-9]+$", x)) {
+    # Try converting to date from origin (Excel's origin is "1899-12-30")
+    date_value <- as.Date(as.numeric(x), origin = "1899-12-30")
+    # Check if the conversion resulted in a reasonable year
+    if (year(date_value) > 1800 && year(date_value) < 2100) {
+      return(year(date_value))
+    } else {
+      # If not a reasonable date, return NA
+      return(NA)
+    }
+  }
+  # If it's a date in day-month-year format, convert it
+  if (grepl("/", x)) {
+    parsed_date <- dmy(x)
+    if (!is.na(parsed_date)) {
+      return(year(parsed_date))
+    }
+  }
+  # Default case for other formats
+  return(NA)
+}
+
+# Define the function to split the data frame into custom parts and write to CSV
+split_and_write_csv <- function(data, split_size, output_dir) {
+  # Calculate the number of rows in each subset
+  total_rows <- nrow(data)
+  num_splits <- ceiling(total_rows / split_size)
+  
+  # Loop through to create subsets and write to CSV
+  for (i in 1:num_splits) {
+    start <- (i - 1) * split_size + 1
+    end <- min(i * split_size, total_rows)
+    
+    # Subset the data
+    subset_data <- data[start:end, ]
+    
+    # Define the file name
+    file_name <- paste0("lookup_subset_", i, ".csv")
+    file_path <- here(output_dir, file_name)
+    
+    # Write the subset to a CSV file
+    write.csv(subset_data, file_path, row.names = FALSE)
+  }
+}
+
+
+# 2. Load the data --------------------------------------------------------
+
+## 2.1 Setting up the directory -------------------------------------------------------
+## Setting up the directories for the data folders 
+data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+
+## file names for CERN  potential
+matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
+potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
+
+
+supplier_patent_lookup_dir <- paste0(data_proc_dir, "suppliers_patent_lookup")
+incoporation_size_nace_dir <- paste0(data_proc_dir, "Incorporation_size_nace_activity_lookup")
+incorporation_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_suppliers/")
+incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE)
+potential_suppliers_tech_balance_file <-"potential_suppliers_tech_balance"
+# suppliers_registration_file <- "suppliers_registration_year.csv"
+
+## 2.2 Loading the data  --------------------------------
+
+
+### Registration
+potential_registration <- readRDS(paste0(data_proc_dir, potential_suppliers_tech_balance_file)) %>% 
+  clean_names() %>% 
+  rename(company_name = suppliername)
+
+#Orbis Data
+matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
+
+#Incorporation
+incorporation_nace_size_list <- lapply(incorporation_suppliers_file,read_results_sheet)
+incorporation_nace_size_data<- do.call(rbind, incorporation_nace_size_list)
+incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') %>%
+  clean_names() %>% 
+  rename(bvd_id_number = bv_d_id_number) %>% 
+  # Identify and process year-only entries
+  mutate(
+    date_of_incorporation = as.character(date_of_incorporation),
+    incorporation_year = sapply(date_of_incorporation, convert_to_year))
+
+# 3. Data Manipulation  ---------------------------------------------------
+
+
+## 3.1 Matched suppliers -------------------------------------------------------
+
+#Make changes to the year variable
+# This follows the convention explained in the Kalemli-Ozcan paper
+#If the closing date is after or on June 1st, the current year is assigned (if CLOSEDATE is 4th of August, 2003, the year is 2003). Otherwise, 
+#the previous year is assigned (if CLOSEDATE is 25th of May, 2003, the year is 2002)
+
+matched_potential_suppliers_orbis_data<- matched_potential_suppliers_orbis_data %>% 
+  mutate(closing_date_format = str_remove(closing_date,"T00:00:00.000Z" ),
+         date_closing = as.Date(closing_date_format),
+         year_orbis = year(closing_date_format),
+         month_orbis = month(closing_date_format), 
+         year= case_when (month_orbis <6 ~ year_orbis -1, 
+                          month_orbis >5 ~ year_orbis),
+         matching_year = year)
+
+## Create BVD ID lookup 
+bvd_id_lookup <- matched_potential_suppliers_orbis_data %>% 
+  select(bvd_id_number, company_name) %>% distinct()# I need this to fill the missing year registration
+
+# I merge the new file with the bvd id lookup
+potential_suppliers_tech_balance<- potential_suppliers_tech_balance %>% 
+  left_join(bvd_id_lookup)
+
+# There are some NAs for registration year 
+potential_suppliers_tech_balance <- potential_suppliers_tech_balance %>%
+  group_by(bvd_id_number) %>%   # Group the data by 'bvd_id_number'
+  rename(registration_year = year_supplier_registration) %>% 
+  # Create or modify variables within each group
+  mutate(
+    # Create a logical variable 'has_non_missing' that checks if there's at least one non-missing 'registration_year'
+    has_non_missing = !all(is.na(registration_year)),
+    # Modify 'registration_year' based on the condition of 'has_non_missing'
+    registration_year = ifelse(
+      has_non_missing, 
+      # If 'has_non_missing' is TRUE, replace NA values or values greater than the minimum 'registration_year' in the group
+      replace(registration_year, 
+              is.na(registration_year) | registration_year > min(registration_year, na.rm = TRUE), 
+              min(registration_year, na.rm = TRUE)
+      ), # If 'has_non_missing' is FALSE (all values are NA), set 'registration_year' to NA
+      NA)
+  ) %>% # Ungroup the data to remove the grouping structure
+  ungroup() %>% # Select all columns except 'has_non_missing' to remove the temporary variable
+  select(-has_non_missing)
+
+
+Continue from line 185 of dataprep_B

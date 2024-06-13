@@ -1,8 +1,9 @@
 #' ---
-#' title: ORBIS-CERN procurement database
+#' title: 01_dataprep_B
 #' author: Gabriele Piazza
-#' date: 2023-06-27
-#' ---
+#' date: 2024-06-01
+#' Description: This script creates the suppliers dataset that includes information from Orbis
+#' including financials, patents and other characteristics. 
 
 
 
@@ -88,7 +89,7 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 
 ## file names for CERN suppliers and potential
 matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched suppliers
-matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
+#matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
 potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
 
@@ -338,6 +339,7 @@ split_and_write_csv(incorporation_size_lookup, 750, incoporation_size_nace_dir)
 
 ## Add the incorporation year, nace, size and actviity
 matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_nace_size_data)
+saveRDS(matched_suppliers_orbis_data_vars_unconsolidated_inc, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated_inc"))
 
 companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number)
 
