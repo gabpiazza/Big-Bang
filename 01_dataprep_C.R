@@ -91,9 +91,7 @@ potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
 
 
 pot_supplier_patent_lookup_dir <- paste0(data_proc_dir, "pot_suppliers_patent_lookup")
-incorporation_size_nace_lookup_pot_dir <- paste0(data_proc_dir, "potential_incorporation_size_nace_activity_lookup")
-incorporation_pot_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_pot_suppliers/")
-#incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE)
+
 potential_suppliers_tech_balance_file <-"potential_suppliers_tech_balance"
 # suppliers_registration_file <- "suppliers_registration_year.csv"
 
@@ -255,6 +253,29 @@ incorporation_size_lookup <- matched_potential_suppliers_orbis_data_vars_unconso
   select(bvd_id_number) %>% distinct()
 split_and_write_csv(incorporation_size_lookup, 725, incorporation_size_nace_lookup_pot_dir)
 
+# directories and files
+incorporation_size_nace_lookup_pot_dir <- paste0(data_proc_dir, "potential_incorporation_size_nace_activity_lookup")
+incorporation_pot_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_pot_suppliers/")
+incorporation_pot_suppliers_file <- list.files(incorporation_pot_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE)
+incorporation_pot_nace_size_list <- lapply(incorporation_pot_suppliers_file,read_results_sheet)
+incorporation_pot_nace_size_data<- do.call(rbind, incorporation_pot_nace_size_list)
+incorporation_pot_nace_size_data<- incorporation_pot_nace_size_data %>% select(-'...1') %>%
+  clean_names() %>% 
+  rename(bvd_id_number = bv_d_id_number) %>% 
+  # Identify and process year-only entries
+  mutate(
+    date_of_incorporation = as.character(date_of_incorporation),
+    incorporation_year = sapply(date_of_incorporation, convert_to_year))
+
+
+## Add the incorporation year, nace, size and actviity
+matched_potential_suppliers_orbis_data_vars_unconsolidated_inc <- matched_potential_suppliers_orbis_data_vars_unconsolidated %>% 
+  left_join(incorporation_pot_nace_size_data)
+
+saveRDS(matched_potential_suppliers_orbis_data_vars_unconsolidated_inc, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars_unconsolidated_inc"))
+
+
+# I then extract the data from the Orbis Platform 
 
 #Create the lookup for patents
 

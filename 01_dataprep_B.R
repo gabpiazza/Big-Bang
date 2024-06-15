@@ -191,46 +191,7 @@ all_orders_tech_balance_selected_countries<- all_orders_tech_balance %>%
   filter(!is.na(bvd_id_number))
 
 
-all_orders_tech_balance_selected_countries_vars <- all_orders_tech_balance_selected_countries %>% 
-  select(bvd_id_number, country, order_date, chf_amount, tech_intensity, tech_level, registration_year, order_number, code_2_digits, subroject, subproject_1) %>% 
-  distinct() %>% 
-  filter(!is.na(order_date)) %>% 
-  mutate(
-    subroject = replace_na(subroject, "OTHERS"),
-    subproject_1 = replace_na(subproject_1, "OTHERS")
-  ) %>% 
-  group_by(bvd_id_number, order_date) %>% 
-  mutate(
-    total_chf_amount_year = sum(chf_amount, na.rm = TRUE), # this sums up all the orders by year and bvdid
-    max_tech = max(tech_level, na.rm = TRUE), # this peaks the highest tech-level - (1 = high-tech, 0 = low-tech)
-    number_orders = n_distinct(order_number), # this is the number of orders per year
-    code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]), # this picks the code for the largest order in a year
-    subroject_max = ifelse(all(is.na(subroject)), NA, subroject[which.max(chf_amount)]), # this does the same thing as above for subroject
-    subroject_max_1 = ifelse(all(is.na(subproject_1)), NA, subproject_1[which.max(chf_amount)]) # this does the same thing as above for subproject_1
-  ) %>%
-  distinct() %>% 
-  drop_na(total_chf_amount_year) %>% 
-  select(-tech_intensity, -chf_amount, -order_number) %>% 
-  distinct() %>% 
-  ungroup() %>% 
-  group_by(bvd_id_number) %>% # the following code creates the variable by bvd_id_number
-  mutate(
-    first_order = min(order_date),
-    last_order = max(order_date),
-    total_orders = sum(number_orders), # creating the first order_date, the last_order, and the total number of orders
-    total_orders_amount = sum(total_chf_amount_year), # this creates the amount for all the orders
-    first_order_amount = total_chf_amount_year[which.min(order_date)], # this creates the amount for the first order
-    first_order_tech = max_tech[which.min(order_date)], # this creates the tech_eve for the first order
-    code_2_digits = code_2_digits[which.min(order_date)], # this creates the code_2 digits for the first_order 
-    subproject_first_year = subroject_max[which.min(order_date)], # this creates the subproject for the first year/order
-    subproject_1_first_year = subroject_max_1[which.min(order_date)], # this creates the subproject for year 1
-    registration_first_order = first_order - as.numeric(registration_year), # this creates the registration for the first order
-    matching_year = order_date
-  ) %>% 
-  select(bvd_id_number, order_date, matching_year, registration_year, total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
-         first_order_amount, first_order_tech, registration_first_order, code_2_digits, subproject_first_year, subproject_1_first_year) %>% 
-  distinct() %>% 
-  ungroup()
+ 
 ## Merge orders and orbis data
 matched_suppliers_orbis_data$matching_year <- matched_suppliers_orbis_data$year# this creates the matching year
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
