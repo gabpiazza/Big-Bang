@@ -78,6 +78,66 @@ split_and_write_csv <- function(data, split_size, output_dir) {
     write.csv(subset_data, file_path, row.names = FALSE)
   }
 }
+# Function to read the "results" sheet from an Excel file, used for the orbis data
+read_results_sheet <- function(file) {
+  read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 5)))
+}
+
+read_results_sheet_patent <- function(file) {
+  read_excel(file, sheet = "Results")
+}
+# Function to handle different date formats and serial numbers
+convert_to_year <- function(x) {
+  # If it's a year, return as is
+  if (nchar(x) == 4 && grepl("^[0-9]{4}$", x)) {
+    return(as.numeric(x))
+  }
+  # If it's a numeric value but not a year, attempt to convert to date
+  if (grepl("^[0-9]+$", x)) {
+    # Try converting to date from origin (Excel's origin is "1899-12-30")
+    date_value <- as.Date(as.numeric(x), origin = "1899-12-30")
+    # Check if the conversion resulted in a reasonable year
+    if (year(date_value) > 1800 && year(date_value) < 2100) {
+      return(year(date_value))
+    } else {
+      # If not a reasonable date, return NA
+      return(NA)
+    }
+  }
+  # If it's a date in day-month-year format, convert it
+  if (grepl("/", x)) {
+    parsed_date <- dmy(x)
+    if (!is.na(parsed_date)) {
+      return(year(parsed_date))
+    }
+  }
+  # Default case for other formats
+  return(NA)
+}
+
+# Define the function to split the data frame into custom parts and write to CSV
+split_and_write_csv <- function(data, split_size, output_dir) {
+  # Calculate the number of rows in each subset
+  total_rows <- nrow(data)
+  num_splits <- ceiling(total_rows / split_size)
+  
+  # Loop through to create subsets and write to CSV
+  for (i in 1:num_splits) {
+    start <- (i - 1) * split_size + 1
+    end <- min(i * split_size, total_rows)
+    
+    # Subset the data
+    subset_data <- data[start:end, ]
+    
+    # Define the file name
+    file_name <- paste0("lookup_subset_", i, ".csv")
+    file_path <- here(output_dir, file_name)
+    
+    # Write the subset to a CSV file
+    write.csv(subset_data, file_path, row.names = FALSE)
+  }
+}
+
 
 
 # 2. Load the data --------------------------------------------------------
@@ -116,7 +176,7 @@ all_orders_tech_balance<- readRDS(paste0(data_proc_dir, all_orders_tech_balance_
 ### Suppliers
 matched_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_suppliers_orbis_file))
 ### Registered
-matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
+#matched_potential_suppliers_orbis_data<- readRDS(paste0(data_proc_dir, matched_potential_suppliers_orbis_file))
 
 incorporation_nace_size_list <- lapply(incorporation_suppliers_file,read_results_sheet)
 incorporation_nace_size_data<- do.call(rbind, incorporation_nace_size_list)
@@ -190,12 +250,50 @@ all_orders_tech_balance_selected_countries<- all_orders_tech_balance %>%
   filter(country %in% c("ES", "FR", "IT", "GB")) %>% 
   filter(!is.na(bvd_id_number))
 
+all_orders_tech_balance_selected_countries_vars<- all_orders_tech_balance_selected_countries %>% 
+  select(bvd_id_number, country, order_date, chf_amount, tech_intensity, tech_level, registration_year, order_number, code_2_digits, subroject, subproject_1) %>% 
+  distinct() %>% 
+  filter(!is.na(order_date)) %>% 
+  group_by(bvd_id_number, order_date) %>% 
+  mutate(
+    total_chf_amount_year = sum(chf_amount, na.rm = TRUE),
+    max_tech = max(tech_level, na.rm = TRUE),
+    number_orders = n_distinct(order_number),
+    code_2_digits = ifelse(length(code_2_digits) == 0, 0, code_2_digits[which.max(chf_amount)]),
+    subroject_max = ifelse(all(is.na(subroject)), NA, subroject[which.max(chf_amount)]),
+    subroject_max_1 = ifelse(all(is.na(subroject)), NA, subproject_1[which.max(chf_amount)]),
+  ) %>%
+  distinct() %>% 
+  drop_na(total_chf_amount_year) %>% 
+  select(-tech_intensity, -chf_amount, -order_number) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  group_by(bvd_id_number) %>% 
+  mutate(first_order= min(order_date),last_order = max(order_date), total_orders = sum(number_orders),
+         total_orders_amount = sum(total_chf_amount_year),
+         first_order_amount = total_chf_amount_year[which.min(order_date)],
+         first_order_tech = max_tech[which.min(order_date)],
+         code_2_digits = code_2_digits[which.min(order_date)],
+         registration_first_order = first_order -as.numeric(registration_year),
+         subproject_first_year = subroject_max[which.min(order_date)], 
+         subproject_1_first_year = subroject_max_1[which.min(order_date)],
+         registration_first_order = first_order -as.numeric(registration_year),
+         matching_year = order_date)%>% 
+  select(bvd_id_number, order_date, matching_year, registration_year, total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
+         first_order_amount, first_order_tech, registration_first_order, code_2_digits, subproject_first_year, subproject_1_first_year)%>% 
+  distinct() %>% 
+  ungroup() %>% 
+  mutate(matching_year = order_date)
+
 
  
 ## Merge orders and orbis data
 matched_suppliers_orbis_data$matching_year <- matched_suppliers_orbis_data$year# this creates the matching year
 matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% 
-  left_join(all_orders_tech_balance_selected_countries_vars, by =c("bvd_id_number", "matching_year")) 
+  left_join(all_orders_tech_balance_selected_countries_vars) 
+
+
+
 
 
 
@@ -210,7 +308,7 @@ matched_suppliers_orbis_data<- matched_suppliers_orbis_data %>% select( -identif
 
 
 matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data %>% # As there are NAs for all the years, I fill all the missing years but I am not successful (Please revisit this) 
-  group_by(bvd_id_number) %>% fill(nacerev2primarycodes, registration_year, registration_first_order,
+  group_by(bvd_id_number) %>% fill(nacerev2primarycodes, registration_year, 
                                    total_chf_amount_year, max_tech, first_order, last_order, total_orders, total_orders_amount, 
                                    first_order_amount, first_order_tech, registration_first_order,  subproject_first_year, subproject_1_first_year) %>% 
   ungroup() %>% 
@@ -313,6 +411,119 @@ split_and_write_csv(patent_bvd_lookup, 50, supplier_patent_lookup_dir)
 
 
 
+
+### I retrieve the data from the Orbis Intellectual property database
+patent_matched_suppliers_dir<- paste0(data_raw_dir, "patent_matched_suppliers")
+patent_matched_suppliers_list_files <- list.files(patent_matched_suppliers_dir, pattern = "xlsx", full.names = TRUE)
+patent_matched_suppliers_list <- lapply(patent_matched_suppliers_list_files, read_results_sheet_patent)
+patent_matched_suppliers_data <- do.call(rbind, patent_matched_suppliers_list)
+patent_matched_suppliers_data<- patent_matched_suppliers_data %>% select(-'...1')
+
+
+
+patent_matched_suppliers_data<- patent_matched_suppliers_data %>% clean_names()
+# List of columns to forward fill
+columns_to_fill <- c("publication_number", "priority_date_5", "current_direct_owner_s_name_s", 
+                     "current_direct_owner_s_country_code_s", "current_direct_owner_s_bv_d_id_number_s", 
+                     "ipc_code_main_9", "ipc_code_label_main", "publication_date", "patent_office", 
+                     "application_filing_date", "application_number", "wipo_code", 
+                     "number_of_forward_citations", "number_of_backward_citations", 
+                     "number_of_family_members")
+
+patent_matched_suppliers_data<- patent_matched_suppliers_data%>% ## There are many NAs rows because each value for some of the variables are saved in different rows
+  fill(all_of(columns_to_fill), .direction = "down")
+
+
+# Extract the year variable
+patent_matched_suppliers_data$application_year<-format(patent_matched_suppliers_data$application_filing_date, "%Y")
+patent_matched_suppliers_data$publication_year<-format(patent_matched_suppliers_data$publication_date, "%Y")
+
+
+patent_matched_suppliers_data_apps <- patent_matched_suppliers_data %>%
+  group_by(application_number) %>%
+  mutate(number_of_forward_citations = replace_na(number_of_forward_citations, 0),
+         weighted_patent = (1 + number_of_forward_citations)) %>%
+  summarize(number_inventors = n_distinct(inventor_s_name_s),
+            number_bvd_ids = n_distinct(applicant_s_bv_d_id_number_s_18),
+            number_patent_offices = n_distinct(patent_office),
+            weighted_patent = sum(weighted_patent)) %>%
+  ungroup()%>%
+  mutate(collaborations = case_when(number_bvd_ids > 1 ~ 1, 
+                                    TRUE ~ 0),
+         multiple_inventors =case_when(number_inventors > 1 ~ 1, 
+                                       TRUE ~ 0),
+         multiple_offices = case_when(number_patent_offices>1~1, 
+                                      TRUE ~0)) %>%
+  distinct()
+patent_matched_apps_suppliers_summary<- patent_matched_suppliers_data %>%
+  left_join(patent_matched_suppliers_data_apps, by = "application_number")
+
+patent_matched_apps_suppliers_summary <- patent_matched_apps_suppliers_summary %>% 
+  select(applicant_s_bv_d_id_number_s_18, application_year, application_number,
+         wipo_code, weighted_patent, multiple_inventors, collaborations, multiple_offices) %>% 
+  distinct() %>% 
+  filter(!is.na(applicant_s_bv_d_id_number_s_18))%>% 
+  group_by(applicant_s_bv_d_id_number_s_18, application_year) %>% 
+  summarize(number_applications = n_distinct(application_number),
+            number_WIPO_code_apps = n_distinct(wipo_code),
+            number_weighted_patent_apps = sum(weighted_patent),
+            number_multiple_inventors_apps = sum(multiple_inventors),
+            number_collaborations_apps = sum(collaborations),
+            number_multiple_patent_offices_apps = sum(multiple_offices), 
+            )  %>% ungroup() %>% 
+  rename(year= application_year)
+
+patent_matched_suppliers_data_pubs <- patent_matched_suppliers_data %>%
+  group_by(publication_number) %>%
+  mutate(number_of_forward_citations = replace_na(number_of_forward_citations, 0),
+         weighted_patent = (1 + number_of_forward_citations)) %>%
+  summarize(number_inventors = n_distinct(inventor_s_name_s),
+            number_bvd_ids = n_distinct(applicant_s_bv_d_id_number_s_18),
+            number_patent_offices = n_distinct(patent_office),
+            weighted_patent = sum(weighted_patent)) %>%
+  ungroup()%>%
+  mutate(collaborations = case_when(number_bvd_ids > 1 ~ 1, 
+                                    TRUE ~ 0),
+         multiple_inventors =case_when(number_inventors > 1 ~ 1, 
+                                       TRUE ~ 0),
+         multiple_offices = case_when(number_patent_offices>1~1, 
+                                      TRUE ~0)) %>%
+  distinct()
+
+patent_matched_pubs_suppliers_summary<- patent_matched_suppliers_data %>%
+  left_join(patent_matched_suppliers_data_pubs, by = "publication_number")
+
+patent_matched_pubs_suppliers_summary <- patent_matched_pubs_suppliers_summary %>% 
+  select(applicant_s_bv_d_id_number_s_18, publication_year, publication_number,
+         wipo_code, weighted_patent, multiple_inventors, collaborations, multiple_offices) %>% 
+  distinct() %>% 
+  filter(!is.na(applicant_s_bv_d_id_number_s_18))%>% 
+  group_by(applicant_s_bv_d_id_number_s_18, publication_year) %>% 
+  summarize(number_publications = n_distinct(publication_number),
+            number_WIPO_code_pubs = n_distinct(wipo_code),
+            number_weighted_patent_pubs = sum(weighted_patent),
+            number_multiple_inventors_pubs = sum(multiple_inventors),
+            number_collaborations_pubs = sum(collaborations),
+            number_multiple_patent_offices_pubs = sum(multiple_offices), 
+  )  %>% ungroup() %>% 
+  rename(year = publication_year)
+
+
+patent_suppliers_summary<- patent_matched_apps_suppliers_summary %>% 
+  left_join(patent_matched_pubs_suppliers_summary)
+
+# Now I want to include only the bvd_ids that are suppliers
+patent_suppliers_summary_selected<- patent_suppliers_summary %>% 
+  filter(applicant_s_bv_d_id_number_s_18 %in% bvd_id_lookup$bvd_id_number)
+
+## Now I create a panel to calculate the patent stock
+
+panel_data
+
+
+# Extract the year variable
+p
+names(test)
 # ### 2.53 I create the date variable -------------------------------------
 all_matched_potential_suppliers<-all_matched_potential_suppliers %>% 
   mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z"),

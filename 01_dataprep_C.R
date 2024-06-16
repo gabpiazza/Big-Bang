@@ -25,6 +25,9 @@ read_results_sheet <- function(file) {
   read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 5)))
 }
 
+read_results_sheet_patent <- function(file) {
+  read_excel(file, sheet = "Results")
+}
 # Function to handle different date formats and serial numbers
 convert_to_year <- function(x) {
   # If it's a year, return as is
