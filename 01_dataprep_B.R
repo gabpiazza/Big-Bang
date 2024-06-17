@@ -516,6 +516,14 @@ patent_suppliers_summary<- patent_matched_apps_suppliers_summary %>%
 patent_suppliers_summary_selected<- patent_suppliers_summary %>% 
   filter(applicant_s_bv_d_id_number_s_18 %in% bvd_id_lookup$bvd_id_number)
 
+patents_publications_apps_counts$year_orbis<- as.numeric(patents_publications_apps_counts$year_orbis)
+panel_data_patents<-expand.grid(year_orbis = 1900:2022, bvd_id_number = unique(patent_suppliers_summary$bvd_id_number))
+panel_data_patents <- panel_data_patents %>% 
+  left_join(patents_publications_apps_counts) %>%   
+  replace_na(list(number_applications = 0, number_publications = 0))
+
+
+
 ## Now I create a panel to calculate the patent stock
 
 panel_data
