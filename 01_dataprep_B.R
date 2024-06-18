@@ -378,19 +378,19 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
   anti_join(matched_suppliers_orbis_data_vars_case_1, by = c("bvd_id_number", "year_orbis", "consolidation_l", "operating_revenue_turnover_")) %>%
   anti_join(matched_suppliers_orbis_data_vars_case_2, by = c("bvd_id_number", "year_orbis", "consolidation_l", "operating_revenue_turnover_")) %>%
   bind_rows(matched_suppliers_orbis_data_vars_case_1, matched_suppliers_orbis_data_vars_case_2) %>%
-  arrange(bvd_id_number, year_orbis)
+  arrange(bvd_id_number, year_orbis) #49748
 
-matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars %>% 
-  filter(consolidation_l =="U") %>% distinct()
+
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
+  group_by(bvd_id_number) %>% 
   mutate(first_year = min(year),# this gets the first year for which you have orbis data
          last_year = max(year), # this gets the last year for which you have orbis data
          order_after_last_orbis = last_year<first_order) # this says whether the last year for which I have data, is before the first order. 
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated%>% 
   group_by(bvd_id_number, year) %>% 
-  filter(ebitda == max(ebitda))%>% # if multiple ebitda per year, I get the maximum - I need to explain why I do this. 
+  filter(operating_revenue_turnover_ == max(operating_revenue_turnover_))%>% # if multiple ebitda per year, I get the maximum - I need to explain why I do this. 
   select(-consolidation_code, -matched_company_name, -nacerev2primarycodes) %>% 
   ungroup() %>% 
   distinct()
@@ -429,7 +429,7 @@ matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data
 
 
 
-number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number) # this gives 1494 companies. 
+number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number) # this gives 1592 companies. 
 # I now create some variables for years before and after order - I want to see whether there is data  pre and post treatment 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% # this might be a repetition
   group_by(bvd_id_number) %>% 
@@ -475,8 +475,23 @@ incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') 
 ## Add the incorporation year, nace, size and activity to the initial dataset
 matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_nace_size_data)
 matched_suppliers_orbis_data_vars_unconsolidated_inc<- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
-  select(-date_of_incorporation, -original_currency, -exchange_rate_from_original_curr)
-
+  select(-date_of_incorporation, -original_currency, -exchange_rate_from_original_curr) %>% 
+  mutate(status_simple = case_when(
+  status %in% c("Active", 
+                "Active (insolvency proceedings)", 
+                "Active (reorganization)", 
+                "Active (rescue plan)", 
+                "Active (dormant)") ~ "Active",
+  status %in% c("Dissolved", 
+                "Dissolved (merger or take-over)", 
+                "Inactive (no precision)", 
+                "Dissolved (bankruptcy)", 
+                "Status unknown", 
+                "Bankruptcy", 
+                "In liquidation", 
+                "Dissolved (liquidation)") ~ "Inactive",
+  TRUE ~ "Unknown" # Default value for any other status not listed
+))
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated_inc, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated_inc"))
 
 
@@ -497,7 +512,7 @@ patent_matched_suppliers_list <- lapply(patent_matched_suppliers_list_files, rea
 patent_matched_suppliers_data <- do.call(rbind, patent_matched_suppliers_list)
 patent_matched_suppliers_data<- patent_matched_suppliers_data %>% select(-'...1')
 
-
+# There is an issue here and I have to repeat the matching as I might have mised out a number of companies. Redo 487 to 491 and redownload and match 
 
 patent_matched_suppliers_data<- patent_matched_suppliers_data %>% clean_names()
 # List of columns to forward fill
@@ -597,61 +612,182 @@ patent_suppliers_summary<- patent_matched_apps_suppliers_summary %>%
 
 # Now I want to include only the bvd_ids that are suppliers
 patent_suppliers_summary_selected<- patent_suppliers_summary %>% 
-  rename(bvd_id_number = applicant_s_bv_d_id_number_s_18 ) %>% 
+  rename(bvd_id_number = applicant_s_bv_d_id_number_s_18,
+         year_patent= year) %>% 
   filter(bvd_id_number %in% bvd_id_lookup$bvd_id_number)
 
-patent_suppliers_summary_selected$year_orbis<- as.numeric(patent_suppliers_summary_selected$year)
+patent_suppliers_summary_selected$year<- as.numeric(patent_suppliers_summary_selected$year_patent)
 patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% distinct()
+patent_suppliers_summary_selected[is.na(patent_suppliers_summary_selected)] <- 0
+#I create the probability of patenting/collaborating in a given year by bvd_id
+
+# Function to create binary variable and calculate probability
+calculate_probability <- function(df, variable) {
+  new_var_name <- gsub("number_", "", paste0("probability_", variable))
+  
+  df %>%
+    mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
+    group_by(year, bvd_id_number) %>%
+    summarise(!!sym(new_var_name) := mean(!!sym(variable), na.rm = TRUE)) %>%
+    ungroup()
+}
+
+# List of variables to process
+variables <- c("number_applications", 
+               "number_WIPO_code_apps", 
+               "number_weighted_patent_apps", 
+               "number_multiple_inventors_apps", 
+               "number_collaborations_apps", 
+               "number_multiple_patent_offices_apps", 
+               "number_publications", 
+               "number_WIPO_code_pubs", 
+               "number_weighted_patent_pubs", 
+               "number_multiple_inventors_pubs", 
+               "number_collaborations_pubs", 
+               "number_multiple_patent_offices_pubs")
+
+# Apply the function to all variables and combine the results
+result_probability_list <- lapply(variables, function(var) calculate_probability(patent_suppliers_summary_selected, var))
+result_probability <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_probability_list)
+
+
+panel_data_suppliers_patents<- panel_data_suppliers_patents %>% left_join(result_probability)
+for (variable in variables) {
+  short_var <- gsub("number_", "", variable)
+  test <- panel_data_suppliers_patents %>%
+    left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
+    mutate(!!paste0("log_", short_var) := log(!!sym(variable) + 1),
+           !!paste0("asinh_", short_var) := asinh(!!sym(variable))) %>%
+    dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
+}
+
+# Define the processing function
+process_data <- function(df, variables) {
+  # Function to create binary variable and calculate probability
+  calculate_probability <- function(df, variable) {
+    new_var_name <- gsub("number_", "", paste0("probability_", variable))
+    
+    df %>%
+      mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
+      group_by(year, bvd_id_number) %>%
+      summarise(!!sym(new_var_name) := mean(!!sym(variable))) %>%
+      ungroup()
+  }
+  
+  # Apply the function to all variables and combine the results
+  result_list <- lapply(variables, function(var) calculate_probability(df, var))
+  result_df <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_list)
+  
+  # Calculate additional variables for all relevant variables
+  for (variable in variables) {
+    short_var <- gsub("number_", "", variable)
+    result_df <- result_df %>%
+      left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
+      mutate(!!paste0("log_", short_var) := log(!!sym(variable) + 1),
+             !!paste0("asinh_", short_var) := asinh(!!sym(variable))) %>%
+      dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
+  }
+  
+  return(result_df)
+}
+
+# Display the result
+
+
 number_companies <- unique(patent_suppliers_summary_selected$bvd_id_number)
 
 # Create a panel dataset: I have to do this to calculate the patent stock for application and publications 
-panel_data_suppliers_patents<-expand.grid(year_orbis = 1900:2022, bvd_id_number = unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))
+panel_data_suppliers_patents<-expand.grid(year = 1900:2022, bvd_id_number = unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))
 panel_data_suppliers_patents <- panel_data_suppliers_patents %>% 
-  left_join(patent_suppliers_summary_selected) %>%   
-  select(-year) %>% 
+  left_join(patent_suppliers_summary_selected)
   
 # Calculate the patent stock for publications and applications 
 
 # This is the depreciation of knowledge taken from the Castelnovo's paper (2023)
 
 rho <- 0.15 # Example decay factor, adjust as needed
-# Arrange data
+# Ensure the dataframe is sorted and initialize stock columns
 panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
-  arrange(bvd_id_number, year_orbis)
+  mutate_at(vars(-year_patent), ~replace_na(., 0))
 
-# Calculate patent stock
-for (firm in unique(panel_data_suppliers_patents$bvd_id_number)) {
-  indices <- which(panel_data_suppliers_patents$bvd_id_number == firm)
-  application_stock_temp <- 0 # Initialize the patent stock
-  
-  for (i in indices) {
-    application_stock_temp <- application_stock_temp * (1 - rho) + panel_data_suppliers_patents$number_applications[i]
-    panel_data_suppliers_patents$application_stock[i] <- application_stock_temp
-  }
-}
-
-# Arrange data (if not already arranged)
 panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
-  arrange(bvd_id_number, year_orbis)
+  arrange(bvd_id_number, year) %>%
+  mutate(application_stock = 0, publication_stock = 0)
 
-# Calculate publication patent stock
+# Calculate patent stock using dplyr for efficiency
+panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
+  group_by(bvd_id_number) %>%
+  mutate(application_stock = {
+    application_stock_temp <- 0
+    sapply(number_applications, function(x) {
+      application_stock_temp <<- application_stock_temp * (1 - rho) + x
+      application_stock_temp
+    })
+  }) %>%
+  ungroup()
 
-for (firm in unique(panel_data_suppliers_patents$bvd_id_number)) {
-  indices <- which(panel_data_suppliers_patents$bvd_id_number == firm)
-  publication_stock_temp <- 0 # Initialize the publication stock
+# Calculate publication stock using dplyr for efficiency
+panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
+  group_by(bvd_id_number) %>%
+  mutate(publication_stock = {
+    publication_stock_temp <- 0
+    sapply(number_publications, function(x) {
+      publication_stock_temp <<- publication_stock_temp * (1 - rho) + x
+      publication_stock_temp
+    })
+  }) %>%
+  ungroup()
+
+head(panel_data_suppliers_patents
+     )
+
+panel_data_suppliers_patents_1990_2022<- panel_data_suppliers_patents %>% filter(year>1989 & year<2023) %>% distinct()
   
-  for (i in indices) {
-    publication_stock_temp <- publication_stock_temp * (1 - rho) + panel_data_suppliers_patents$number_publications[i]
-    panel_data_suppliers_patents$publication_stock[i] <- publication_stock_temp
-  }
-}
-panel_data_suppliers_patents_1990_2022<- panel_data_suppliers_patents %>% filter(year_orbis>1989 & year_orbis<2023) %>% distinct()
+
 saveRDS(panel_data_suppliers_patents_1990_2022, paste0(data_proc_dir, "panel_data_suppliers_patents_1990_2022"))
 number_companies<- unique(panel_data_suppliers_patents_1990_2022$bvd_id_number)
 
-## Now I create a panel to calculate the patent stock
 
-panel_data
+## 3.4 Merge all the data together -----------------------------------------
+
+
+### Putting all the data together
+year<- seq(1990, 2022) # I am including all the data between 1990 and 2019 but no strong reasons to to this 
+year <- rep(1990:2022, each = length(unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))) # this is the number of companies that I have 
+bvd_id_number <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number) # This gives you the unique companies
+bvd_id_number<-(rep(bvd_id_number, each = 31)) # this repeats times 25, the number of years 
+merged_data_suppliers <- expand.grid(year = unique(year), bvd_id_number = unique(bvd_id_number))# this creates a grid
+merged_data_suppliers <- merged_data_suppliers[order(merged_data_suppliers$bvd_id_number, merged_data_suppliers$year), ]
+merged_data_suppliers$year <- as.numeric(merged_data_suppliers$year)
+
+
+
+
+full_panel_suppliers<- left_join(merged_data_suppliers, matched_suppliers_orbis_data_vars_unconsolidated_inc) %>% 
+  left_join(panel_data_suppliers_patents_1990_2022)
+
+### Last cleaning steps 
+missing_financial_bvd_ids <- full_panel_suppliers %>%
+  filter(year == first_order) %>%
+  filter(is.na(fixed_assets) | is.na(operating_revenue_turnover_) | is.na(ebitda)) %>%
+  pull(bvd_id_number)
+
+always_treated_bvd_ids <- full_panel_suppliers %>%
+  filter(first_year >= first_order | incorporation_year >= first_order) %>%
+  pull(bvd_id_number)
+
+
+
+#### I am excluding all the years after the last available year for those inactive
+full_panel_suppliers<- full_panel_suppliers %>% 
+  filter(!bvd_id_number %in% c(missing_financial_bvd_ids, always_treated_bvd_ids)) %>% 
+  group_by(bvd_id_number) %>% 
+  filter(!(status_simple == "Inactive" & year > last_avail_year)) %>% 
+  ungroup()  # Ungroup after filtering
+
+
+## I am also excluding those bvd_id_ that do not have data for the covariates that I use in the analysis at the time of the order
+
 
 
 # Extract the year variable
@@ -735,7 +871,7 @@ number_companies_with_code <- unique(unconsolidated_accounts_potential$bvd_id_nu
 
 # Create a panel data
 year<- seq(1990, 2020) # I am including all the data between 1995 and 2019 but no strong reasons to to this 
-year <- rep(1990:2020, each = 484) # this is the number of companies that I have 
+year <- rep(1990:2020, each = length(unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))) # this is the number of companies that I have 
 bvd_id_number <- unique(unconsolidated_accounts_potential$bvd_id_number) # This gives you the unique companies
 bvd_id_number<-(rep(bvd_id_number, each = 31)) # this repeats times 25, the number of years 
 merged_data_pot <- expand.grid(year = unique(year), bvd_id_number = unique(bvd_id_number))# this creates a grid
