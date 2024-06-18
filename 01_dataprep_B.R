@@ -80,7 +80,7 @@ split_and_write_csv <- function(data, split_size, output_dir) {
 }
 # Function to read the "results" sheet from an Excel file, used for the orbis data
 read_results_sheet <- function(file) {
-  read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 5)))
+  read_excel(file, sheet = "Results",col_types = c(rep("guess", 8), "text", rep("guess", 6)))
 }
 
 read_results_sheet_patent <- function(file) {
@@ -319,9 +319,67 @@ matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data %>% # As there 
 
 saveRDS(matched_suppliers_orbis_data_vars, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars"))
 
-# I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2. I want just the initial letters. 
-# Add the difference between consolidated and unconsolidated from the paper 
+# I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2 and LF. I want just the initial letters. 
 matched_suppliers_orbis_data_vars$consolidation_l <- substr(matched_suppliers_orbis_data_vars$consolidation_code,1,1)
+#   
+#   When firms report different financial values under different consolidation codes, priority is given to those with consolidated accounts.
+# Filters for Case 2 Duplicates:
+#   
+#   For firms continuously reporting unconsolidated accounts, priority is given to unconsolidated accounts.
+# For firms continuously reporting consolidated accounts, priority is given to consolidated accounts.
+# Inconsistent Reporting for Case 2 Duplicates:
+#   
+# #   For firms reporting both consolidated and unconsolidated accounts inconsistently but with the same sales value, 
+# the sales volume over time is checked and verified. Priority is given to the consolidated code, and the time series is reclassified as consolidated.
+
+
+
+# Add the difference between consolidated and unconsolidated from the paper 
+# Priority for Case 1 Duplicates:
+# Step 1: Case 1 Handling (different financial values)
+# Filter duplicates where firms report different financial values under different consolidation codes
+# Priority is given to consolidated accounts ('C')
+matched_suppliers_orbis_data_vars_case_1 <- matched_suppliers_orbis_data_vars %>%
+  group_by(bvd_id_number, year_orbis) %>%
+  filter(n() > 1 & length(unique(operating_revenue_turnover_)) > 1) %>%
+  arrange(bvd_id_number, year_orbis, desc(consolidation_l)) %>% # to prioritize the C accounts 
+  slice(1) %>%
+  ungroup()
+
+# Step 2: Case 2 Handling (same financial values)
+# Define a function to prioritize duplicates based on consolidation code
+# Function to prioritize based on rules
+prioritize_duplicates <- function(df) {
+  df %>%
+    group_by(bvd_id_number) %>%
+    mutate(
+      priority = case_when(
+        all(consolidation_l == 'U') ~ ifelse(consolidation_l == 'U', 1, 2),
+        all(consolidation_l == 'C') ~ ifelse(consolidation_l == 'C', 1, 2),
+        TRUE ~ ifelse(consolidation_l == 'C', 1, 2)
+      )
+    ) %>%
+    arrange(priority) %>%
+    slice(1) %>%
+    ungroup() %>%
+    select(-priority)
+}
+
+# Apply the function to handle duplicates where firms report the same financial values under different consolidation codes
+matched_suppliers_orbis_data_vars_case_2  <- matched_suppliers_orbis_data_vars %>%
+  group_by(bvd_id_number, year_orbis) %>%
+  filter(n() > 1 & length(unique(operating_revenue_turnover_)) == 1) %>%
+  prioritize_duplicates()
+
+# Step 3: Combine Results
+# Combine the cleaned data from Case 1 and Case 2 into a final dataframe
+# Keeping only the highest priority rows
+matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars %>% 
+  anti_join(matched_suppliers_orbis_data_vars_case_1, by = c("bvd_id_number", "year_orbis", "consolidation_l", "operating_revenue_turnover_")) %>%
+  anti_join(matched_suppliers_orbis_data_vars_case_2, by = c("bvd_id_number", "year_orbis", "consolidation_l", "operating_revenue_turnover_")) %>%
+  bind_rows(matched_suppliers_orbis_data_vars_case_1, matched_suppliers_orbis_data_vars_case_2) %>%
+  arrange(bvd_id_number, year_orbis)
+
 matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars %>% 
   filter(consolidation_l =="U") %>% distinct()
 
@@ -411,7 +469,8 @@ incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') 
   # Identify and process year-only entries
   mutate(
     date_of_incorporation = as.character(date_of_incorporation),# create the year variabes
-    incorporation_year = sapply(date_of_incorporation, convert_to_year))
+    incorporation_year = sapply(date_of_incorporation, convert_to_year),
+    last_avail_year = as.numeric(last_avail_year))
 
 ## Add the incorporation year, nace, size and activity to the initial dataset
 matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_nace_size_data)
@@ -550,7 +609,7 @@ panel_data_suppliers_patents<-expand.grid(year_orbis = 1900:2022, bvd_id_number 
 panel_data_suppliers_patents <- panel_data_suppliers_patents %>% 
   left_join(patent_suppliers_summary_selected) %>%   
   select(-year) %>% 
-  mutate_all(~replace_na(., 0))
+  
 # Calculate the patent stock for publications and applications 
 
 # This is the depreciation of knowledge taken from the Castelnovo's paper (2023)
