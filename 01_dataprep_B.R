@@ -200,7 +200,7 @@ incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') 
 # 3. Data Manipulation  ---------------------------------------------------
 
 
-## 3.1 Matched suppliers -------------------------------------------------------
+## 3.1 Manipulation of the matched orbis dataset for suppliers and all orders -------------------------------------------------------
 
 #Make changes to the year variable
 # This follows the convention explained in the Kalemli-Ozcan paper
@@ -345,6 +345,7 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
   ungroup() %>% 
   distinct() 
 
+# Here I fill all the rows for the time invariant variables
 
 matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars_unconsolidated %>%
   group_by(bvd_id_number) %>%
@@ -379,40 +380,58 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
   ungroup() %>% 
   distinct()
 
-
+# here I am getting rid of all the variables that I don't need
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
          -city_native, -telephone_number, -address_type, -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
 
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
-# Create lookup for incorporation, size, nace and activity 
-## this is then used to create the incorporation_nace_size_data
+## 3.2 Incorporation, Size, NACE, Active data ------------------------------
 
+
+
+incoporation_size_nace_dir <- paste0(data_proc_dir, "supplier_incorporation_size_nace_activity_lookup")# create the directory where the files is then saved
+incorporation_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_suppliers/") # create the directory where the matched files are saved 
+# Create lookup for incorporation, size, nace and activity 
+## this is then used to create the incorporation_nace_size_data matched on orbis 
 incorporation_size_lookup <- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(bvd_id_number) %>% distinct()
 split_and_write_csv(incorporation_size_lookup, 750, incoporation_size_nace_dir)
 
+#  Load the matched data
 
+incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE) #load the data as list
 
+incorporation_nace_size_list <- lapply(incorporation_suppliers_file,read_results_sheet)# save it into diffent files
+incorporation_nace_size_data<- do.call(rbind, incorporation_nace_size_list)# bind the different datasets together
+incorporation_nace_size_data<- incorporation_nace_size_data %>% select(-'...1') %>% # rename the identifier
+  clean_names() %>% 
+  rename(bvd_id_number = bv_d_id_number) %>% 
+  # Identify and process year-only entries
+  mutate(
+    date_of_incorporation = as.character(date_of_incorporation),# create the year variabes
+    incorporation_year = sapply(date_of_incorporation, convert_to_year))
 
-## Add the incorporation year, nace, size and actviity
+## Add the incorporation year, nace, size and activity to the initial dataset
 matched_suppliers_orbis_data_vars_unconsolidated_inc <- left_join(matched_suppliers_orbis_data_vars_unconsolidated, incorporation_nace_size_data)
+matched_suppliers_orbis_data_vars_unconsolidated_inc<- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
+  select(-date_of_incorporation, -original_currency, -exchange_rate_from_original_curr)
+
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated_inc, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated_inc"))
 
-companies_number_suppliers <- unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number)
 
 #Create the lookup for patents
 
+## 3.3.Patent data --------------------------------------------------------
+
 patent_bvd_lookup <- matched_suppliers_orbis_data_vars_unconsolidated_inc %>% 
-  select(bvd_id_number) %>% distinct()
+  select(bvd_id_number) %>% distinct()# create the lookup
 
-split_and_write_csv(patent_bvd_lookup, 50, supplier_patent_lookup_dir)
+split_and_write_csv(patent_bvd_lookup, 50, supplier_patent_lookup_dir) # create the lookups to use to retrieve informaton 
+# I can only download data for 32,358 rows at a time for the variables that I need
 
-
-
-
-### I retrieve the data from the Orbis Intellectual property database
+### I retrieve the data from the Orbis Intellectual property database and then load it here 
 patent_matched_suppliers_dir<- paste0(data_raw_dir, "patent_matched_suppliers")
 patent_matched_suppliers_list_files <- list.files(patent_matched_suppliers_dir, pattern = "xlsx", full.names = TRUE)
 patent_matched_suppliers_list <- lapply(patent_matched_suppliers_list_files, read_results_sheet_patent)
@@ -423,6 +442,7 @@ patent_matched_suppliers_data<- patent_matched_suppliers_data %>% select(-'...1'
 
 patent_matched_suppliers_data<- patent_matched_suppliers_data %>% clean_names()
 # List of columns to forward fill
+# I do this because of the way I saved the files. There are multiple rows for the same patents
 columns_to_fill <- c("publication_number", "priority_date_5", "current_direct_owner_s_name_s", 
                      "current_direct_owner_s_country_code_s", "current_direct_owner_s_bv_d_id_number_s", 
                      "ipc_code_main_9", "ipc_code_label_main", "publication_date", "patent_office", 
@@ -438,6 +458,8 @@ patent_matched_suppliers_data<- patent_matched_suppliers_data%>% ## There are ma
 patent_matched_suppliers_data$application_year<-format(patent_matched_suppliers_data$application_filing_date, "%Y")
 patent_matched_suppliers_data$publication_year<-format(patent_matched_suppliers_data$publication_date, "%Y")
 
+# I create here a set of variables based on applications and publications (how different are these?)
+# Applications 
 
 patent_matched_suppliers_data_apps <- patent_matched_suppliers_data %>%
   group_by(application_number) %>%
@@ -473,10 +495,12 @@ patent_matched_apps_suppliers_summary <- patent_matched_apps_suppliers_summary %
             )  %>% ungroup() %>% 
   rename(year= application_year)
 
+# Publications
+
 patent_matched_suppliers_data_pubs <- patent_matched_suppliers_data %>%
   group_by(publication_number) %>%
   mutate(number_of_forward_citations = replace_na(number_of_forward_citations, 0),
-         weighted_patent = (1 + number_of_forward_citations)) %>%
+         weighted_patent = (1 + number_of_forward_citations)) %>% # this is from the 1990's paper 
   summarize(number_inventors = n_distinct(inventor_s_name_s),
             number_bvd_ids = n_distinct(applicant_s_bv_d_id_number_s_18),
             number_patent_offices = n_distinct(patent_office),
@@ -514,15 +538,57 @@ patent_suppliers_summary<- patent_matched_apps_suppliers_summary %>%
 
 # Now I want to include only the bvd_ids that are suppliers
 patent_suppliers_summary_selected<- patent_suppliers_summary %>% 
-  filter(applicant_s_bv_d_id_number_s_18 %in% bvd_id_lookup$bvd_id_number)
+  rename(bvd_id_number = applicant_s_bv_d_id_number_s_18 ) %>% 
+  filter(bvd_id_number %in% bvd_id_lookup$bvd_id_number)
 
-patents_publications_apps_counts$year_orbis<- as.numeric(patents_publications_apps_counts$year_orbis)
-panel_data_patents<-expand.grid(year_orbis = 1900:2022, bvd_id_number = unique(patent_suppliers_summary$bvd_id_number))
-panel_data_patents <- panel_data_patents %>% 
-  left_join(patents_publications_apps_counts) %>%   
-  replace_na(list(number_applications = 0, number_publications = 0))
+patent_suppliers_summary_selected$year_orbis<- as.numeric(patent_suppliers_summary_selected$year)
+patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% distinct()
+number_companies <- unique(patent_suppliers_summary_selected$bvd_id_number)
 
+# Create a panel dataset: I have to do this to calculate the patent stock for application and publications 
+panel_data_suppliers_patents<-expand.grid(year_orbis = 1900:2022, bvd_id_number = unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))
+panel_data_suppliers_patents <- panel_data_suppliers_patents %>% 
+  left_join(patent_suppliers_summary_selected) %>%   
+  select(-year) %>% 
+  mutate_all(~replace_na(., 0))
+# Calculate the patent stock for publications and applications 
 
+# This is the depreciation of knowledge taken from the Castelnovo's paper (2023)
+
+rho <- 0.15 # Example decay factor, adjust as needed
+# Arrange data
+panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
+  arrange(bvd_id_number, year_orbis)
+
+# Calculate patent stock
+for (firm in unique(panel_data_suppliers_patents$bvd_id_number)) {
+  indices <- which(panel_data_suppliers_patents$bvd_id_number == firm)
+  application_stock_temp <- 0 # Initialize the patent stock
+  
+  for (i in indices) {
+    application_stock_temp <- application_stock_temp * (1 - rho) + panel_data_suppliers_patents$number_applications[i]
+    panel_data_suppliers_patents$application_stock[i] <- application_stock_temp
+  }
+}
+
+# Arrange data (if not already arranged)
+panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
+  arrange(bvd_id_number, year_orbis)
+
+# Calculate publication patent stock
+
+for (firm in unique(panel_data_suppliers_patents$bvd_id_number)) {
+  indices <- which(panel_data_suppliers_patents$bvd_id_number == firm)
+  publication_stock_temp <- 0 # Initialize the publication stock
+  
+  for (i in indices) {
+    publication_stock_temp <- publication_stock_temp * (1 - rho) + panel_data_suppliers_patents$number_publications[i]
+    panel_data_suppliers_patents$publication_stock[i] <- publication_stock_temp
+  }
+}
+panel_data_suppliers_patents_1990_2022<- panel_data_suppliers_patents %>% filter(year_orbis>1989 & year_orbis<2023) %>% distinct()
+saveRDS(panel_data_suppliers_patents_1990_2022, paste0(data_proc_dir, "panel_data_suppliers_patents_1990_2022"))
+number_companies<- unique(panel_data_suppliers_patents_1990_2022$bvd_id_number)
 
 ## Now I create a panel to calculate the patent stock
 
@@ -740,103 +806,7 @@ entered_companies_pot<- full_panel_pot_suppliers_unconsolidated_nona %>%
 entered_exited_companies_pot <- entered_companies_pot %>% filter(exit_year==1) %>% 
   select(bvd_id_number) %>% distinct()
 
-# Patent Lookup-------------------------------------------------------------------------
-
-#  
-patent_pot_bvd_lookup <- full_panel_pot_suppliers_unconsolidated %>% 
-  select(bvd_id_number) %>% distinct()
-# Determine the total number of rows in the data
-total_rows <- nrow(patent_pot_bvd_lookup)
-
-# Set the desired subset size
-subset_size <- 100
-
-# Calculate the number of subsets needed
-num_subsets <- ceiling(total_rows / subset_size)
-
-# Loop over subsets and write to separate CSV files
-for (i in 1:num_subsets) {
-  # Calculate the start and end row indices for the subset
-  start_row <- (i - 1) * subset_size + 1
-  end_row <- min(i * subset_size, total_rows)
-  
-  # Extract the subset of rows
-  subset <- patent_pot_bvd_lookup[start_row:end_row, ]
-  
-  # Generate the filename for the subset
-  filename <- paste0("patent_pot_lookup_subset", i, ".csv")
-  
-  # Write the subset to CSV
-  write.csv(subset, here("data_proc","pot_suppliers_patent_lookup", filename), row.names = FALSE)
-}
 
 
-
-# Merge with patent data  -------------------------------------------------
-
-
-patent_data_pot_suppliers<- read_csv(here("Analysis","data_proc", "patents_pot_suppliers_1995_2019.csv"))
-patent_data_pot_suppliers<- patent_data_pot_suppliers %>% select(-'...1')
-full_panel_pot_suppliers<- left_join(full_panel_pot_suppliers_unconsolidated_nona, patent_data_pot_suppliers)
-
-full_panel_pot_suppliers <- full_panel_pot_suppliers %>%
-  mutate(
-    num_applications = replace(num_applications, is.na(num_applications), 0),
-    num_publications = replace(num_publications, is.na(num_publications), 0),
-    cumulative_patents = replace(cumulative_patents, is.na(cumulative_patents), 0),
-    lag_cum_applications = replace(lag_cum_applications, is.na(lag_cum_applications), 0),
-    stock_patent = replace(stock_patent, is.na(stock_patent), 0),
-    lag_patent_stock = replace(lag_patent_stock, is.na(lag_patent_stock), 0),
-    patent_stock = replace(patent_stock, is.na(patent_stock), 0)
-  )
-full_panel_pot_suppliers<- full_panel_pot_suppliers %>% distinct()
-full_panel_pot_suppliers<- full_panel_pot_suppliers %>% mutate(supplier_status =0)
-
-full_panel_pot_suppliers <- full_panel_pot_suppliers %>%
-  group_by(bvd_id_number) %>%
-  mutate(tech_intensity = ifelse(!is.na(tech_intensity), tech_intensity, last(na.omit(tech_intensity))),
-         activitycode = ifelse(!is.na(activitycode), activitycode, last(na.omit(activitycode))),
-         country = ifelse(!is.na(country), country, last(na.omit(country))),
-         code_2_digits = ifelse(!is.na(code_2_digits), code_2_digits, last(na.omit(code_2_digits))),
-         
-        incorporation_year = ifelse(!is.na(incorporation_year), incorporation_year, last(na.omit(incorporation_year)))) %>%   ungroup()
-
-bvd_id_lookup_potential_suppliers_size <- full_panel_pot_suppliers %>% select(bvd_id_number) %>% distinct()
-
-write.csv(full_panel_pot_suppliers, here("Analysis","data_proc", "full_panel_pot_suppliers.csv"))
-write.csv(bvd_id_lookup_potential_suppliers_size, here("Analysis", "data_proc", "bvd_id_lookup_pot_suppliers_size.csv"))
-
-
-
-# Load size postcode lookup -----------------------------------------------
-# load the files 
-size_nace_postcode_pot_suppliers <- read_excel("Analysis/data_proc/size_nace_postcode_pot_suppliers.xlsx", sheet ="Results")
-
-size_nace_postcode_pot_suppliers <- size_nace_postcode_pot_suppliers  %>% 
-  select(-'...1') %>% 
-  rename(company_name ='Company name Latin alphabet',bvd_id_number = 'BvD ID number',
-         nace_main_section = 'NACE Rev. 2 main section', size_classification = 'Size classification',
-         nace_4_digits = 'NACE Rev. 2, core code (4 digits)', bvd_sectors = 'BvD sectors', 
-         postcode ='Postcode\nLatin Alphabet')
-
-full_panel_pot_suppliers<- left_join(full_panel_pot_suppliers, size_nace_postcode_pot_suppliers)
-
-# this does not work 
-
-full_panel_pot_suppliers<- full_panel_pot_suppliers %>%
-  select(-date_closing, -consolidation_l, -closing_date_format) %>% 
-  group_by(bvd_id_number) %>%
-  mutate(first_order = 0,
-         first_order_amount = 0,
-         first_order_tech = 0,
-         total_orders_amount = 0,
-         total_orders = 0,
-         last_order = 0,
-         first_year = 0,
-         last_year =0,
-         country = 0) %>%
-  ungroup()
-
-write.csv(full_panel_pot_suppliers, here("Analysis","data_proc", "full_panel_pot_suppliers.csv"))
 
 
