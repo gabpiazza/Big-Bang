@@ -620,18 +620,6 @@ patent_suppliers_summary_selected$year<- as.numeric(patent_suppliers_summary_sel
 patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% distinct()
 patent_suppliers_summary_selected[is.na(patent_suppliers_summary_selected)] <- 0
 #I create the probability of patenting/collaborating in a given year by bvd_id
-
-# Function to create binary variable and calculate probability
-calculate_probability <- function(df, variable) {
-  new_var_name <- gsub("number_", "", paste0("probability_", variable))
-  
-  df %>%
-    mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
-    group_by(year, bvd_id_number) %>%
-    summarise(!!sym(new_var_name) := mean(!!sym(variable), na.rm = TRUE)) %>%
-    ungroup()
-}
-
 # List of variables to process
 variables <- c("number_applications", 
                "number_WIPO_code_apps", 
@@ -645,21 +633,6 @@ variables <- c("number_applications",
                "number_multiple_inventors_pubs", 
                "number_collaborations_pubs", 
                "number_multiple_patent_offices_pubs")
-
-# Apply the function to all variables and combine the results
-result_probability_list <- lapply(variables, function(var) calculate_probability(patent_suppliers_summary_selected, var))
-result_probability <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_probability_list)
-
-
-panel_data_suppliers_patents<- panel_data_suppliers_patents %>% left_join(result_probability)
-for (variable in variables) {
-  short_var <- gsub("number_", "", variable)
-  test <- panel_data_suppliers_patents %>%
-    left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
-    mutate(!!paste0("log_", short_var) := log(!!sym(variable) + 1),
-           !!paste0("asinh_", short_var) := asinh(!!sym(variable))) %>%
-    dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
-}
 
 # Define the processing function
 process_data <- function(df, variables) {
@@ -691,6 +664,9 @@ process_data <- function(df, variables) {
   return(result_df)
 }
 
+probability_log_patents_panel<- process_data(panel_data_suppliers_patents, variables)
+patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% left_join(probability_log_patents_panel) %>% 
+  select(-probability_publication_stock, -probability_application_stock)
 # Display the result
 
 
