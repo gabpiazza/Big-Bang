@@ -619,54 +619,54 @@ patent_suppliers_summary_selected<- patent_suppliers_summary %>%
 patent_suppliers_summary_selected$year<- as.numeric(patent_suppliers_summary_selected$year_patent)
 patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% distinct()
 patent_suppliers_summary_selected[is.na(patent_suppliers_summary_selected)] <- 0
-#I create the probability of patenting/collaborating in a given year by bvd_id
-# List of variables to process
-variables <- c("number_applications", 
-               "number_WIPO_code_apps", 
-               "number_weighted_patent_apps", 
-               "number_multiple_inventors_apps", 
-               "number_collaborations_apps", 
-               "number_multiple_patent_offices_apps", 
-               "number_publications", 
-               "number_WIPO_code_pubs", 
-               "number_weighted_patent_pubs", 
-               "number_multiple_inventors_pubs", 
-               "number_collaborations_pubs", 
-               "number_multiple_patent_offices_pubs")
-
-# Define the processing function
-process_data <- function(df, variables) {
-  # Function to create binary variable and calculate probability
-  calculate_probability <- function(df, variable) {
-    new_var_name <- gsub("number_", "", paste0("probability_", variable))
-    
-    df %>%
-      mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
-      group_by(year, bvd_id_number) %>%
-      summarise(!!sym(new_var_name) := mean(!!sym(variable))) %>%
-      ungroup()
-  }
-  
-  # Apply the function to all variables and combine the results
-  result_list <- lapply(variables, function(var) calculate_probability(df, var))
-  result_df <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_list)
-  
-  # Calculate additional variables for all relevant variables
-  for (variable in variables) {
-    short_var <- gsub("number_", "", variable)
-    result_df <- result_df %>%
-      left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
-      mutate(!!paste0("log_", short_var) := log(!!sym(variable) + 1),
-             !!paste0("asinh_", short_var) := asinh(!!sym(variable))) %>%
-      dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
-  }
-  
-  return(result_df)
-}
-
-probability_log_patents_panel<- process_data(panel_data_suppliers_patents, variables)
-patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% left_join(probability_log_patents_panel) %>% 
-  select(-probability_publication_stock, -probability_application_stock)
+# #I create the probability of patenting/collaborating in a given year by bvd_id
+# # List of variables to process
+# variables <- c("number_applications", 
+#                "number_WIPO_code_apps", 
+#                "number_weighted_patent_apps", 
+#                "number_multiple_inventors_apps", 
+#                "number_collaborations_apps", 
+#                "number_multiple_patent_offices_apps", 
+#                "number_publications", 
+#                "number_WIPO_code_pubs", 
+#                "number_weighted_patent_pubs", 
+#                "number_multiple_inventors_pubs", 
+#                "number_collaborations_pubs", 
+#                "number_multiple_patent_offices_pubs")
+# 
+# # Define the processing function
+# process_data <- function(df, variables) {
+#   # Function to create binary variable and calculate probability
+#   calculate_probability <- function(df, variable) {
+#     new_var_name <- gsub("number_", "", paste0("probability_", variable))
+#     
+#     df %>%
+#       mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
+#       group_by(year, bvd_id_number) %>%
+#       summarise(!!sym(new_var_name) := mean(!!sym(variable))) %>%
+#       ungroup()
+#   }
+#   
+#   # Apply the function to all variables and combine the results
+#   result_list <- lapply(variables, function(var) calculate_probability(df, var))
+#   result_df <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_list)
+#   
+#   # Calculate additional variables for all relevant variables
+#   for (variable in variables) {
+#     short_var <- gsub("number_", "", variable)
+#     result_df <- result_df %>%
+#       left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
+#       mutate(!!paste0("log_", short_var) := log(!!sym(variable) + 1),
+#              !!paste0("asinh_", short_var) := asinh(!!sym(variable))) %>%
+#       dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
+#   }
+#   
+#   return(result_df)
+# }
+# 
+# probability_log_patents_panel<- process_data(panel_data_suppliers_patents, variables)
+# patent_suppliers_summary_selected<- patent_suppliers_summary_selected %>% left_join(probability_log_patents_panel) %>% 
+#   select(-probability_publication_stock, -probability_application_stock)
 # Display the result
 
 
@@ -676,6 +676,8 @@ number_companies <- unique(patent_suppliers_summary_selected$bvd_id_number)
 panel_data_suppliers_patents<-expand.grid(year = 1900:2022, bvd_id_number = unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))
 panel_data_suppliers_patents <- panel_data_suppliers_patents %>% 
   left_join(patent_suppliers_summary_selected)
+panel_data_suppliers_patents[is.na(panel_data_suppliers_patents)] <- 0
+
   
 # Calculate the patent stock for publications and applications 
 
@@ -713,13 +715,85 @@ panel_data_suppliers_patents <- panel_data_suppliers_patents %>%
     })
   }) %>%
   ungroup()
-
-head(panel_data_suppliers_patents
-     )
-
 panel_data_suppliers_patents_1990_2022<- panel_data_suppliers_patents %>% filter(year>1989 & year<2023) %>% distinct()
-  
 
+# Define the processing function
+# Function to process the variables list
+process_variables <- function(df, variables) {
+  # Function to create binary variable and calculate probability
+  calculate_probability <- function(df, variable) {
+    new_var_name <- gsub("number_", "", paste0("probability_", variable))
+    
+    df %>%
+      mutate(!!sym(variable) := ifelse(!!sym(variable) > 0, 1, 0)) %>%
+      group_by(year, bvd_id_number) %>%
+      summarise(!!sym(new_var_name) := mean(!!sym(variable)), .groups = "drop")
+  }
+  
+  # Apply the function to all variables and combine the results
+  result_list <- lapply(variables, function(var) calculate_probability(df, var))
+  result_df <- Reduce(function(x, y) full_join(x, y, by = c("year", "bvd_id_number")), result_list)
+  
+  # Calculate additional variables for all relevant variables
+  for (variable in variables) {
+    short_var <- gsub("number_", "", variable)
+    result_df <- result_df %>%
+      left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(variable)), by = c("year", "bvd_id_number")) %>%
+      mutate(
+        !!paste0("log_", short_var) := ifelse(!!sym(variable) == 0, 0, log(!!sym(variable) + 1)),  # Ensure log(variable + 1)
+        !!paste0("asinh_", short_var) := asinh(!!sym(variable))
+      ) %>%
+      dplyr::select(-!!sym(variable))  # Drop the original columns if not needed
+  }
+  
+  return(result_df)
+}
+
+
+
+process_stock_variables <- function(df, stock_vars) {
+  result_df <- df %>% dplyr::select(year, bvd_id_number)
+  
+  # Calculate transformations for stock variables
+  for (stock_var in stock_vars) {
+    result_df <- result_df %>%
+      left_join(df %>% dplyr::select(year, bvd_id_number, !!sym(stock_var)), by = c("year", "bvd_id_number")) %>%
+      mutate(
+        !!paste0("log_", stock_var) := ifelse(!!sym(stock_var) == 0, 0, log(!!sym(stock_var) + 1)),  # Ensure log(stock_var + 1)
+        !!paste0("asinh_", stock_var) := asinh(!!sym(stock_var))
+      ) %>%
+      dplyr::select(-!!sym(stock_var))  # Drop the original columns if not needed
+  }
+  
+  return(result_df)
+}
+
+# List of variables to process
+variables <- c("number_applications", 
+               "number_WIPO_code_apps", 
+               "number_weighted_patent_apps", 
+               "number_multiple_inventors_apps", 
+               "number_collaborations_apps", 
+               "number_multiple_patent_offices_apps", 
+               "number_publications", 
+               "number_WIPO_code_pubs", 
+               "number_weighted_patent_pubs", 
+               "number_multiple_inventors_pubs", 
+               "number_collaborations_pubs", 
+               "number_multiple_patent_offices_pubs")
+
+# List of stock variables
+stock_vars <- c("application_stock", "publication_stock")
+
+# create probability and log for the two sets of variables
+result_variables <- process_variables(panel_data_suppliers_patents_1990_2022,variables)
+result_stock_variables <- process_stock_variables(panel_data_suppliers_patents_1990_2022, stock_vars)
+# Putting the two datasets together
+probability_log_variables<- left_join(result_variables, result_stock_variables)
+
+
+panel_data_suppliers_patents_1990_2022<- panel_data_suppliers_patents_1990_2022 %>% 
+  left_join(probability_log_variables)
 saveRDS(panel_data_suppliers_patents_1990_2022, paste0(data_proc_dir, "panel_data_suppliers_patents_1990_2022"))
 number_companies<- unique(panel_data_suppliers_patents_1990_2022$bvd_id_number)
 
@@ -755,6 +829,8 @@ always_treated_bvd_ids <- full_panel_suppliers %>%
 
 
 #### I am excluding all the years after the last available year for those inactive
+## I am also excluding those bvd_id_ that do not have data for the covariates that I use in the analysis at the time of the order
+
 full_panel_suppliers<- full_panel_suppliers %>% 
   filter(!bvd_id_number %in% c(missing_financial_bvd_ids, always_treated_bvd_ids)) %>% 
   group_by(bvd_id_number) %>% 
@@ -762,222 +838,47 @@ full_panel_suppliers<- full_panel_suppliers %>%
   ungroup()  # Ungroup after filtering
 
 
-## I am also excluding those bvd_id_ that do not have data for the covariates that I use in the analysis at the time of the order
+
+
+## Create the logs for financial variables 
+# Function to process the new variables, handling negative values
+process_financial_variables <-  function(df, new_vars) {
+  for (new_var in new_vars) {
+    # Find the minimum value
+    min_value <- min(df[[new_var]], na.rm = TRUE)
+    # Calculate the shift value if the minimum value is negative
+    shift_value <- ifelse(min_value < 0, abs(min_value) + 1, 0)
+    
+    df <- df %>%
+      mutate(!!paste0("log_", new_var) := ifelse(is.na(!!sym(new_var)), NA, log(pmax(!!sym(new_var) + shift_value, 0) + 1)))
+  }
+  return(df)
+}
+
+# List of new variables to process
+financial_vars <- c("fixed_assets", 
+              "intangible_fixed_assets", 
+              "tangible_fixed_assets", 
+              "current_assets", 
+              "total_assets", 
+              "number_of_employees", 
+              "operating_revenue_turnover_", 
+              "p_l_before_tax", 
+              "p_l_after_tax", 
+              "research_development_expenses", 
+              "ebitda")
 
 
 
-# Extract the year variable
-p
-names(test)
-# ### 2.53 I create the date variable -------------------------------------
-all_matched_potential_suppliers<-all_matched_potential_suppliers %>% 
-  mutate(closing_date_format = str_remove(closing_date, "T00:00:00.000Z"),
-         date_closing = as.Date(closing_date_format))
+# Use the function to process the new variables
+logged_financial_vars <- process_financial_variables(full_panel_suppliers, financial_vars)
+# Select only the bvd_id_number, year, and the new log variables
+logged_financial_names <- paste0("log_", financial_vars)
+selected_columns <- c("bvd_id_number", "year",logged_financial_names)
+logged_financial_vars <- logged_financial_vars %>% select(all_of(selected_columns))
 
-# I then extract month and year 
-all_matched_potential_suppliers_clean<-all_matched_potential_suppliers %>% 
-  mutate(year_orbis = year(closing_date_format),
-         month_orbis = month(closing_date_format))
+## Merging to the full_suppliers_panel
+full_panel_suppliers<- full_panel_suppliers %>% left_join(logged_financial_vars) %>% distinct()
 
-
-# This follows the convention explained in the Kalemli-Ozcan paper
-#If the closing date is after or on June 1st, the current year is assigned (if CLOSEDATE is 4th of August, 2003, the year is 2003). Otherwise, 
-#the previous year is assigned (if CLOSEDATE is 25th of May, 2003, the year is 2002)
-
-all_matched_potential_suppliers_clean<- all_matched_potential_suppliers_clean %>% mutate(year = case_when (month_orbis <6 ~ year_orbis -1, 
-                                                                                                     month_orbis >5 ~ year_orbis))
-all_matched_potential_suppliers_clean<- all_matched_potential_suppliers_clean %>% select( -identifier, -score, -nacerev2mainsection, -nationalindustryclassificationus, -primarycodesinthisclassification, -primarycodeinnationalindustrycla, -secondarycodesinthisclassificati,
-                                                                       -secondarycodeinnationalindustryc, -nacerev2mainsection, -nacerev2corecode4digits,-nacerev2corecodetextdescription,
-                                                                       -nacerev2secondarycodes,-nacerev2secondarycodetextdescrip, -postcode, -city.y) %>% distinct()
-
-# I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2. I want just the initial letters. 
-
-all_matched_potential_suppliers_clean$consolidation_l <- substr(all_matched_potential_suppliers_clean$consolidation_code,1,1)
-
-
-all_matched_potential_suppliers_clean<-all_matched_potential_suppliers_clean %>% 
-  group_by(bvd_id_number) %>% fill(year_supplier_registration) %>% ungroup()
-
-all_matched_potential_suppliers_clean<- all_matched_potential_suppliers_clean %>% 
-  rename(registration_year = year_supplier_registration) 
-all_matched_potential_suppliers_clean<- all_matched_potential_suppliers_clean %>% 
-  select(-city,-city.x, -nacerev2primarycodes, -contact, - nacerev2primarycodes, -email, 
-         -email_y_n, -x1_digit, -matched_company_name, -company_name, -suppliercode) %>% distinct()
-  
-unconsolidated_accounts_potential<- all_matched_potential_suppliers_clean %>% 
-  filter(consolidation_l =="U")
-
-unconsolidated_accounts_potential<- unconsolidated_accounts_potential %>% 
-  group_by(bvd_id_number) %>% 
-  mutate(first_year = min(year),
-         last_year = max(year)) %>% 
-  ungroup() %>% 
-  distinct()
-
-unconsolidated_accounts_potential<- unconsolidated_accounts_potential %>% 
-  group_by(bvd_id_number, year) %>% 
-  filter( ebitda == max(ebitda))%>%
-  select(-filing_type) %>% 
-  ungroup() %>% 
-  distinct() %>% 
-  ungroup() %>% 
-  filter(!is.na(registration_year))
-
-
-check<- unconsolidated_accounts_potential %>% filter(!is.na(registration_year))
-number_companies_with_code <- unique(check$bvd_id_number)
-
-number_observations_pot_variables<- unconsolidated_accounts_potential %>% 
-  dplyr::filter(year<ΩΩ & year>=1995) %>% 
-  dplyr::group_by(bvd_id_number,year) %>% 
-  dplyr::filter(ebitda == max(ebitda)) %>% # I have notices some discrepancies when multiple ebitda are filed each year. I select the largest one
-  dplyr::select(bvd_id_number, year, operating_revenue_turnover_, p_l_before_tax, p_l_after_tax, ebitda) %>% 
-  distinct() %>% 
-  ungroup() %>% 
-  dplyr::group_by(bvd_id_number) %>% 
-  dplyr::summarize(observations_turnover = sum(!is.na(operating_revenue_turnover_)),
-            observations_p_l_b_tax = sum(!is.na(p_l_before_tax)),
-            observations_p_l_a_tax = sum(!is.na(p_l_after_tax)),
-            observations_ebitda = sum(!is.na(ebitda)))
-
-unconsolidated_accounts_potential<- unconsolidated_accounts_potential %>% 
-  filter(year >=1989 & year <= 2020 )
-number_companies_with_code <- unique(unconsolidated_accounts_potential$bvd_id_number)
-
-
-# Create a panel data
-year<- seq(1990, 2020) # I am including all the data between 1995 and 2019 but no strong reasons to to this 
-year <- rep(1990:2020, each = length(unique(matched_suppliers_orbis_data_vars_unconsolidated_inc$bvd_id_number))) # this is the number of companies that I have 
-bvd_id_number <- unique(unconsolidated_accounts_potential$bvd_id_number) # This gives you the unique companies
-bvd_id_number<-(rep(bvd_id_number, each = 31)) # this repeats times 25, the number of years 
-merged_data_pot <- expand.grid(year = unique(year), bvd_id_number = unique(bvd_id_number))# this creates a grid
-merged_data_pot <- merged_data_pot[order(merged_data_pot$bvd_id_number, merged_data_pot$year), ]
-merged_data_pot$year <- as.numeric(merged_data_pot$year)
-# I am now joining this new grid with the data that I have
-full_panel_pot_suppliers_unconsolidated<- left_join(merged_data_pot, unconsolidated_accounts_potential)
-
-#-- This might be redundant as companies might be assigned different codes
-CERN_orders_techlevel <- read_excel("~/Dropbox/PhD/procurement_cern/data/raw/CERN_techlevel.xlsx")
-CERN_orders_techlevel<-clean_names(CERN_orders_techlevel)
-CERN_orders_techlevel<-CERN_orders_techlevel %>% rename(activitycode=x3_digits )# columns have different names
-tech_level<-CERN_orders_techlevel %>% select(activitycode,tech_intensity) # don't need the other columns so  am dropping them 
-full_panel_pot_suppliers_unconsolidated<- left_join(full_panel_pot_suppliers_unconsolidated, tech_level)
-# Create change variables -------------------------------------------------
-
-full_panel_pot_suppliers_unconsolidated <- full_panel_pot_suppliers_unconsolidated %>% 
-  group_by(bvd_id_number) %>%
-  arrange(year) %>% 
-  mutate(
-    operating_revenue_turnover_rate_change = (operating_revenue_turnover_ - lag(operating_revenue_turnover_)) / lag(operating_revenue_turnover_),
-    ebitda_rate_change = ((ebitda - lag(ebitda)) / (abs(lag(ebitda))*100)),
-    p_l_before_tax_rate_change = ((p_l_before_tax - lag(p_l_before_tax)) / (abs(lag(p_l_before_tax))*100)),
-    p_l_after_tax_rate_change = ((p_l_after_tax - lag(p_l_after_tax))/(abs(lag(p_l_after_tax))*100)), 
-    operating_revenue_turnover_change = operating_revenue_turnover_ - lag(operating_revenue_turnover_), 
-    ebitda_change = ebitda - lag(ebitda), 
-    p_l_before_tax_change = p_l_before_tax - lag(p_l_before_tax),
-    p_l_after_tax_change = p_l_after_tax - lag(p_l_after_tax)
-  )
-
-# I now have many NAs for variables that do not change over time, so I try to fill them with existing values. t
-full_panel_pot_suppliers_unconsolidated<- full_panel_pot_suppliers_unconsolidated %>% 
-  group_by(bvd_id_number) %>% 
-  fill(registration_year, first_year, last_year, )
-
-# The issue is that the fill function only works when you have data prior to NAs. If the first year is NA, you might have some issues 
-# This script should address the issue 
-
-full_panel_pot_suppliers_unconsolidated <- full_panel_pot_suppliers_unconsolidated %>%
-  group_by(bvd_id_number) %>%
-  mutate(registration_year = ifelse(!is.na(registration_year), registration_year, last(na.omit(registration_year))),
-         first_year = ifelse(!is.na(first_year), first_year, last(na.omit(first_year))),
-         x2_digit = ifelse(!is.na(x2_digit), x2_digit, last(na.omit(x2_digit))),
-         last_year = ifelse(!is.na(last_year), last_year, last(na.omit(last_year)))) %>%  
-  rename(code_2_digits =x2_digit) %>%  ungroup()
-
-full_panel_pot_suppliers_unconsolidated <- full_panel_pot_suppliers_unconsolidated %>%
-  group_by(bvd_id_number) %>%
-  mutate(exit_year = ifelse(year > last_year & last_year < 2018, 1, 0),
-         entry_year = ifelse(year >= first_year | year >= registration_year, 1, 0),
-         entry_year = ifelse(year < first_year, 0, entry_year)) %>%
-  ungroup()
-
-
-full_panel_pot_suppliers_unconsolidated<-left_join(full_panel_pot_suppliers_unconsolidated, number_observations_pot_variables)
-full_panel_pot_suppliers_unconsolidated<- full_panel_pot_suppliers_unconsolidated %>% filter(year>1994)
-
-full_panel_pot_suppliers_unconsolidated_nona<- full_panel_pot_suppliers_unconsolidated %>% 
-  filter(!is.na(observations_turnover) & !is.na(observations_ebitda) & !is.na(observations_p_l_a_tax) & !is.na(observations_p_l_b_tax))
-
-
-# #### Consolidation year -------------------------------------------------
-
-
-
-list_full_panel_pot_suppliers_unconsolidated_nona <-full_panel_pot_suppliers_unconsolidated_nona %>% select(bvd_id_number) %>% distinct()
-write.csv(list_full_panel_pot_suppliers_unconsolidated_nona, here("Analysis","data_proc", "bvd_incorporation_pot_lookup.csv"), row.names = F)
-
-
-incorporation_date_pot_suppliers<-  read_excel(here("Analysis","data_raw","Export 11_07_2023 18_02_pot_suppliers_incorporation.xlsx"), 
-                                               sheet = "Results", col_types = c("text", 
-                                                                                "text", "numeric", "text", "text", "date"))
-
-incorporation_date_pot_suppliers<- incorporation_date_pot_suppliers %>% select(-'Column1',-"Company name Latin alphabet")
-incorporation_date_pot_suppliers<- clean_names(incorporation_date_pot_suppliers)
-incorporation_date_pot_suppliers<- incorporation_date_pot_suppliers %>% rename(bvd_id_number = bv_d_id_number)
-incorporation_date_pot_suppliers <- incorporation_date_pot_suppliers %>% mutate(incorporation_year = year(date_of_incorporation)) %>% select(-date_of_incorporation)
-incorporation_date_pot_suppliers$last_avail_year<- as.numeric(incorporation_date_pot_suppliers$last_avail_year)
-
-full_panel_pot_suppliers_unconsolidated_nona <- left_join(full_panel_pot_suppliers_unconsolidated_nona, incorporation_date_pot_suppliers)
-
-full_panel_pot_suppliers_unconsolidated_nona <- full_panel_pot_suppliers_unconsolidated_nona %>%
-  group_by(bvd_id_number) %>%
-  mutate(exit_year = ifelse(year > last_avail_year & last_avail_year < 2018, 1, 0),
-         entry_year = ifelse(year >= incorporation_year | year >= registration_year, 1, 0),
-         entry_year = ifelse(year < incorporation_year, 0, entry_year)) %>%
-  ungroup()
-
-
-
-full_panel_pot_suppliers_unconsolidated_25_all_outcomes_nona<-full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(observations_turnover==25 & observations_ebitda ==25 & observations_p_l_b_tax==25 & observations_p_l_a_tax ==25)
-pot_suppliers_full_data_25<- full_panel_pot_suppliers_unconsolidated_25_all_outcomes_nona %>% select(bvd_id_number) %>% distinct()
-
-full_panel_pot_suppliers_unconsolidated_24_all_outcomes_nona<- full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(observations_turnover==24 & observations_ebitda ==24 & observations_p_l_b_tax==24 & observations_p_l_a_tax==24)
-pot_suppliers_full_data_24<- full_panel_pot_suppliers_unconsolidated_24_all_outcomes_nona %>% select(bvd_id_number) %>% distinct()
-
-full_panel_pot_suppliers_unconsolidated_nona_random<- full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(observations_turnover<24 & observations_ebitda <24 & observations_p_l_b_tax<24 & observations_p_l_a_tax<24)
-
-missing_random_years<- full_panel_pot_suppliers_unconsolidated_nona_random %>% group_by(bvd_id_number) %>% 
-  summarize(entry_years = sum(entry_year),
-            exit_years = sum(exit_year)) %>% 
-  filter(exit_years ==0 & entry_years==25)
-
-
-  filter(entry_year==1 & exit_year==0) %>%
-  select(bvd_id_number) %>% distinct()
-
-exited_companies<- full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(exit_year ==1) %>% group_by(bvd_id_number) %>% 
-  mutate(number = n()) %>% 
-  select(bvd_id_number) %>% 
-  distinct()
-
-exited_companies_list <- unique(exited_companies$bvd_id_number)
-exited_companies<- full_panel_suppliers_unconsolidated_nona %>% 
-  filter(bvd_id_number %in% exited_companies_list)
-
-entered_companies_pot<- full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(entry_year==0)  
-enter_pot_companies_list <- unique(entered_companies_pot$bvd_id_number)
-entered_companies_pot<- full_panel_pot_suppliers_unconsolidated_nona %>% 
-  filter(bvd_id_number %in% enter_companies_list)
-
-entered_exited_companies_pot <- entered_companies_pot %>% filter(exit_year==1) %>% 
-  select(bvd_id_number) %>% distinct()
-
-
-
-
+saveRDS(full_panel_suppliers, paste0(data_proc_dir, "full_panel_suppliers"))
 
