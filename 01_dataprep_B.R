@@ -149,13 +149,10 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 
 ## file names for CERN suppliers and potential
 matched_suppliers_orbis_file <- "matched_suppliers_orbis_data"# file for matched suppliers
-#matched_potential_suppliers_orbis_file <- "matched_potential_suppliers_orbis_data" #file for matched potential suppliers
 all_orders_tech_balance_file <- "all_orders_tech_balance" #all orders with with tech and balance matched
-potential_suppliers_registration_file <- "22_10_31_potential_suppliers.csv"
 
 
 supplier_patent_lookup_dir <- paste0(data_proc_dir, "suppliers_patent_lookup")
-incoporation_size_nace_dir <- paste0(data_proc_dir, "Incorporation_size_nace_activity_lookup")
 incorporation_suppliers_orbis_dir <- paste0(data_raw_dir, "Orbis_size_classification_incorp_suppliers/")
 incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pattern = "xlsx", full.names = TRUE)
 # suppliers_registration_file <- "suppliers_registration_year.csv"
@@ -166,9 +163,6 @@ incorporation_suppliers_file <- list.files(incorporation_suppliers_orbis_dir, pa
 
 
 ### Registered
-potential_registration <- read_csv(paste0(data_raw_dir, potential_suppliers_registration_file)) %>% 
-  clean_names() %>% 
-  rename(company_name = suppliername)
 ### All Orders with tech lookup and balanc e
 all_orders_tech_balance<- readRDS(paste0(data_proc_dir, all_orders_tech_balance_file))
 
@@ -430,14 +424,6 @@ matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data
 
 
 number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number) # this gives 1592 companies. 
-# I now create some variables for years before and after order - I want to see whether there is data  pre and post treatment 
-matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% # this might be a repetition
-  group_by(bvd_id_number) %>% 
-  mutate(year_after_order = last_year - first_order,
-         year_before_order = first_order -first_year) %>% 
-  ungroup() %>% 
-  distinct()
-
 # here I am getting rid of all the variables that I don't need
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
