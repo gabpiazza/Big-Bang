@@ -30,3 +30,11 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 
 suppliers_file <- "full_panel_suppliers"
 potential_suppliers_file <- "full_panel_potential_suppliers"
+## 2.2 Load the data -------------------------------------------------------
+
+full_panel_suppliers<- readRDS(paste0(data_proc_dir, suppliers_file))
+full_panel_potential_suppliers<- readRDS(paste0(data_proc_dir, potential_suppliers_file))
+
+check<- full_panel_suppliers %>% group_by(bvd_id_number, year) %>% summarize(n())
+
+

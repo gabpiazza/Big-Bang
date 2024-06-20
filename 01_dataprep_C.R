@@ -231,11 +231,15 @@ matched_potential_suppliers_orbis_data_vars<- matched_potential_suppliers_orbis_
 
 
 saveRDS(matched_potential_suppliers_orbis_data_vars, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars"))
+matched_potential_suppliers_orbis_data_vars<-readRDS(paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars"))
+
 
 # I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2. I want just the initial letters. 
 # Add the difference between consolidated and unconsolidated from the paper 
-matched_potential_suppliers_orbis_data_vars$consolidation_l <- substr(matched_potential_suppliers_orbis_data_vars$consolidation_code,1,1)
-
+matched_potential_suppliers_orbis_data_vars$consolidation_l <- substr(matched_potential_suppliers_orbis_data_vars$consolidation_code,1,1) 
+matched_potential_suppliers_orbis_data_vars<- matched_potential_suppliers_orbis_data_vars %>%
+  select(-nacerev2primarycodes, -city_native, -address_type, -consolidation_code, -postcode) %>% 
+         distinct()
 #   
 #   When firms report different financial values under different consolidation codes, priority is given to those with consolidated accounts.
 # Filters for Case 2 Duplicates:
@@ -262,29 +266,25 @@ matched_potential_suppliers_orbis_data_vars_case_1 <- matched_potential_supplier
   ungroup()
 
 # Step 2: Case 2 Handling (same financial values)
-# Define a function to prioritize duplicates based on consolidation code
-# Function to prioritize based on rules
-prioritize_duplicates <- function(df) {
+# Define a function to prioritize duplicates based on majority rule
+prioritize_duplicates_majority <- function(df) {
   df %>%
     group_by(bvd_id_number) %>%
     mutate(
-      priority = case_when(
-        all(consolidation_l == 'U') ~ ifelse(consolidation_l == 'U', 1, 2),
-        all(consolidation_l == 'C') ~ ifelse(consolidation_l == 'C', 1, 2),
-        TRUE ~ ifelse(consolidation_l == 'C', 1, 2)
-      )
+      majority_consolidation = ifelse(sum(consolidation_l == 'U') > sum(consolidation_l == 'C'), 'U', 'C'),
+      priority = ifelse(consolidation_l == majority_consolidation, 1, 2)
     ) %>%
     arrange(priority) %>%
     slice(1) %>%
     ungroup() %>%
-    select(-priority)
+    select(-priority, -majority_consolidation)
 }
 
 # Apply the function to handle duplicates where firms report the same financial values under different consolidation codes
 matched_potential_suppliers_orbis_data_vars_case_2  <- matched_potential_suppliers_orbis_data_vars %>%
   group_by(bvd_id_number, year_orbis) %>%
   filter(n() > 1 & length(unique(operating_revenue_turnover_)) == 1) %>%
-  prioritize_duplicates()
+  prioritize_duplicates_majority()
 
 # Step 3: Combine Results
 # Combine the cleaned data from Case 1 and Case 2 into a final dataframe
@@ -295,7 +295,19 @@ matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_s
   bind_rows(matched_potential_suppliers_orbis_data_vars_case_1, matched_potential_suppliers_orbis_data_vars_case_2) %>%
   arrange(bvd_id_number, year_orbis) #49748
 
+matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_suppliers_orbis_data_vars_unconsolidated %>% 
+  group_by(bvd_id_number, year) %>%
+  filter(operating_revenue_turnover_ == max(operating_revenue_turnover_)) %>%
+  ungroup()
 
+matched_potential_suppliers_orbis_data_vars_unconsolidated <- matched_potential_suppliers_orbis_data_vars_unconsolidated %>%
+  group_by(bvd_id_number, year) %>%
+  arrange(desc(consolidation_l)) %>% # Prioritize 'C' over 'U'
+  slice(1) %>%
+  ungroup()
+
+check_number<- matched_potential_suppliers_orbis_data_vars_unconsolidated %>% group_by(bvd_id_number, year) %>% 
+  summarize(number = n())
 
 matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_suppliers_orbis_data_vars_unconsolidated %>% 
   group_by(bvd_id_number) %>% 
@@ -306,7 +318,7 @@ matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_s
 matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_suppliers_orbis_data_vars_unconsolidated%>% 
   group_by(bvd_id_number, year) %>% 
   filter(operating_revenue_turnover_ == max(operating_revenue_turnover_))%>% # if multiple ebitda per year, I get the maximum - I need to explain why I do this. 
-  select(-consolidation_code, -matched_company_name, -nacerev2primarycodes) %>% 
+  select( -matched_company_name) %>% 
   ungroup() %>% 
   distinct()
 
@@ -337,8 +349,8 @@ number_companies <- unique(matched_potential_suppliers_orbis_data_vars_unconsoli
 
 # here I am getting rid of all the variables that I don't need
 matched_potential_suppliers_orbis_data_vars_unconsolidated<- matched_potential_suppliers_orbis_data_vars_unconsolidated %>% 
-  select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
-         -city_native, -telephone_number, -address_type, -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
+  select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, 
+         -telephone_number,  -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
 
 saveRDS(matched_potential_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars_unconsolidated"))
 
@@ -392,7 +404,7 @@ matched_potential_suppliers_orbis_data_vars_unconsolidated_inc<- matched_potenti
     TRUE ~ "Unknown" # Default value for any other status not listed
   ))
 saveRDS(matched_potential_suppliers_orbis_data_vars_unconsolidated_inc, paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars_unconsolidated_inc"))
-
+matched_potential_suppliers_orbis_data_vars_unconsolidated_inc<- readRDS(paste0(data_proc_dir, "matched_potential_suppliers_orbis_data_vars_unconsolidated_inc"))
 
 #Create the lookup for patents
 
@@ -659,7 +671,7 @@ panel_data_pot_suppliers_patents_1990_2022<- panel_data_pot_suppliers_patents_19
   left_join(probability_log_variables)
 saveRDS(panel_data_pot_suppliers_patents_1990_2022, paste0(data_proc_dir, "panel_data_pot_suppliers_patents_1990_2022"))
 number_companies<- unique(panel_data_pot_suppliers_patents_1990_2022$bvd_id_number)
-
+panel_data_pot_suppliers_patents_1990_2022<- readRDS(paste0(data_proc_dir, "panel_data_pot_suppliers_patents_1990_2022"))
 
 ## 3.4 Merge all the data together -----------------------------------------
 
@@ -700,6 +712,33 @@ full_panel_potential_suppliers<- full_panel_potential_suppliers %>%
   filter(!(status_simple == "Inactive" & year > last_avail_year)) %>% 
   ungroup()  # Ungroup after filtering
 
+annual_report_combinations <- full_panel_potential_suppliers%>%
+  group_by(bvd_id_number, year) %>%
+  filter(any(filing_type == 'Annual report')) %>%
+  ungroup() %>%
+  select(bvd_id_number, year) %>%
+  distinct()
+
+# Filter to keep only 'Annual Report' for combinations with both types
+filtered_df_annual <-full_panel_potential_suppliers%>%
+  semi_join(annual_report_combinations, by = c("bvd_id_number", "year")) %>%
+  filter(filing_type == 'Annual report') %>% distinct()
+
+# Identify combinations where only 'Local Registry Filing' is present
+local_registry_only_combinations <- full_panel_potential_suppliers %>%
+  group_by(bvd_id_number, year) %>%
+  filter(all(filing_type == 'Local registry filing')) %>%
+  ungroup() %>%
+  select(bvd_id_number, year) %>%
+  distinct()
+
+# Filter to keep only 'Local Registry Filing' for combinations with only this type
+filtered_df_local <- full_panel_potential_suppliers %>%
+  semi_join(local_registry_only_combinations, by = c("bvd_id_number", "year"))
+
+# Combine both filtered dataframes
+final_filtered_df <- bind_rows(filtered_df_annual, filtered_df_local)
+full_panel_potential_suppliers<- final_filtered_df
 
 
 
@@ -742,7 +781,15 @@ logged_financial_vars <- logged_financial_vars %>% select(all_of(selected_column
 
 ## Merging to the full_suppliers_panel
 full_panel_potential_suppliers<- full_panel_potential_suppliers %>% left_join(logged_financial_vars) %>% distinct()
+full_panel_potential_suppliers<- readRDS(paste0(data_proc_dir, "full_panel_potential_suppliers"))
+full_panel_potential_suppliers<- full_panel_potential_suppliers %>% 
+  select(-company_name) %>% distinct()
 
+full_panel_potential_suppliers <- full_panel_potential_suppliers %>%
+  group_by(bvd_id_number, year) %>%
+  arrange(desc(filing_type == 'Annual Report'), desc(operating_revenue_turnover_)) %>% # Prioritize Annual Report and then by highest operating revenue
+  slice(1) %>%
+  ungroup()
 
 
 saveRDS(full_panel_potential_suppliers, paste0(data_proc_dir, "full_panel_potential_suppliers"))
