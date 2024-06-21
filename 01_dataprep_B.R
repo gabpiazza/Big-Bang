@@ -312,9 +312,13 @@ matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data %>% # As there 
 
 
 saveRDS(matched_suppliers_orbis_data_vars, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars"))
+matched_suppliers_orbis_data_vars<- readRDS(paste0(data_proc_dir, "matched_suppliers_orbis_data_vars"))
 
 # I create a new variables for the consolidations codes. Before doing this, I have U1, U2, C1, and C2 and LF. I want just the initial letters. 
 matched_suppliers_orbis_data_vars$consolidation_l <- substr(matched_suppliers_orbis_data_vars$consolidation_code,1,1)
+matched_suppliers_orbis_data_vars<- matched_suppliers_orbis_data_vars %>%
+  select(-nacerev2primarycodes, -city_native, -address_type, -consolidation_code, -postcode) %>% 
+  distinct()
 #   
 #   When firms report different financial values under different consolidation codes, priority is given to those with consolidated accounts.
 # Filters for Case 2 Duplicates:
@@ -326,8 +330,7 @@ matched_suppliers_orbis_data_vars$consolidation_l <- substr(matched_suppliers_or
 # #   For firms reporting both consolidated and unconsolidated accounts inconsistently but with the same sales value, 
 # the sales volume over time is checked and verified. Priority is given to the consolidated code, and the time series is reclassified as consolidated.
 
-
-
+ 
 # Add the difference between consolidated and unconsolidated from the paper 
 # Priority for Case 1 Duplicates:
 # Step 1: Case 1 Handling (different financial values)
@@ -343,27 +346,27 @@ matched_suppliers_orbis_data_vars_case_1 <- matched_suppliers_orbis_data_vars %>
 # Step 2: Case 2 Handling (same financial values)
 # Define a function to prioritize duplicates based on consolidation code
 # Function to prioritize based on rules
-prioritize_duplicates <- function(df) {
+# Define a function to prioritize duplicates based on majority rule
+prioritize_duplicates_majority <- function(df) {
   df %>%
     group_by(bvd_id_number) %>%
     mutate(
-      priority = case_when(
-        all(consolidation_l == 'U') ~ ifelse(consolidation_l == 'U', 1, 2),
-        all(consolidation_l == 'C') ~ ifelse(consolidation_l == 'C', 1, 2),
-        TRUE ~ ifelse(consolidation_l == 'C', 1, 2)
-      )
+      majority_consolidation = ifelse(sum(consolidation_l == 'U') > sum(consolidation_l == 'C'), 'U', 'C'),
+      priority = ifelse(consolidation_l == majority_consolidation, 1, 2)
     ) %>%
     arrange(priority) %>%
     slice(1) %>%
     ungroup() %>%
-    select(-priority)
+    select(-priority, -majority_consolidation)
 }
+
 
 # Apply the function to handle duplicates where firms report the same financial values under different consolidation codes
 matched_suppliers_orbis_data_vars_case_2  <- matched_suppliers_orbis_data_vars %>%
   group_by(bvd_id_number, year_orbis) %>%
   filter(n() > 1 & length(unique(operating_revenue_turnover_)) == 1) %>%
-  prioritize_duplicates()
+  prioritize_duplicates_majority()
+
 
 # Step 3: Combine Results
 # Combine the cleaned data from Case 1 and Case 2 into a final dataframe
@@ -375,6 +378,20 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
   arrange(bvd_id_number, year_orbis) #49748
 
 
+matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
+  group_by(bvd_id_number, year) %>%
+  filter(operating_revenue_turnover_ == max(operating_revenue_turnover_)) %>%
+  ungroup()
+
+matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data_vars_unconsolidated %>%
+  group_by(bvd_id_number, year) %>%
+  arrange(desc(consolidation_l)) %>% # Prioritize 'C' over 'U'
+  slice(1) %>%
+  ungroup()
+
+check_number<- matched_suppliers_orbis_data_vars_unconsolidated %>% group_by(bvd_id_number, year) %>% 
+  summarize(number = n())
+
 
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
   group_by(bvd_id_number) %>% 
@@ -385,7 +402,7 @@ matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated%>% 
   group_by(bvd_id_number, year) %>% 
   filter(operating_revenue_turnover_ == max(operating_revenue_turnover_))%>% # if multiple ebitda per year, I get the maximum - I need to explain why I do this. 
-  select(-consolidation_code, -matched_company_name, -nacerev2primarycodes) %>% 
+  select( -matched_company_name) %>% 
   ungroup() %>% 
   distinct()
 
@@ -426,8 +443,8 @@ matched_suppliers_orbis_data_vars_unconsolidated <- matched_suppliers_orbis_data
 number_companies <- unique(matched_suppliers_orbis_data_vars_unconsolidated$bvd_id_number) # this gives 1592 companies. 
 # here I am getting rid of all the variables that I don't need
 matched_suppliers_orbis_data_vars_unconsolidated<- matched_suppliers_orbis_data_vars_unconsolidated %>% 
-  select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native, -postcode, 
-         -city_native, -telephone_number, -address_type, -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
+  select(-city, - closing_date, -street_no_building_etc_line_4, -street_no_building_etc_line_4_native,
+          -telephone_number,  -date_closing, -closing_date_format) %>% distinct() # I Am getting rid of the variables that I don't need
 
 saveRDS(matched_suppliers_orbis_data_vars_unconsolidated, paste0(data_proc_dir, "matched_suppliers_orbis_data_vars_unconsolidated"))
 
@@ -823,7 +840,7 @@ full_panel_suppliers<- full_panel_suppliers %>%
   filter(!(status_simple == "Inactive" & year > last_avail_year)) %>% 
   ungroup()  # Ungroup after filtering
 
-
+number_companies <- unique(full_panel_suppliers$bvd_id_number) # this goes down to 1307 now
 
 
 ## Create the logs for financial variables 
