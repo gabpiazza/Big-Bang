@@ -164,6 +164,8 @@ full_panel <- full_panel %>%
     first_order = as.numeric(first_order),
     first_year = as.numeric(first_year)
   )
+
+# I have some missing values for incorporation year and therefore I use the first_year in the Oris data
 full_panel <- full_panel %>%
   mutate(
     incorporation_year_age = if_else(is.na(incorporation_year) | incorporation_year > 2022, first_year, incorporation_year)
@@ -179,3 +181,43 @@ full_panel<- full_panel %>%
     )
   )
 
+no_age_companies <- full_panel %>% filter(is.na(age)) %>% 
+  dplyr::group_by(bvd_id_number) %>% distinct() %>% pull(bvd_id_number) # this is empty 
+
+full_panel<- full_panel %>% 
+  mutate(SME_status= case_when(
+           size_classification %in% c("Small company","Medium sized company") ~1,
+           size_classification %in% c("Large company","Very large company") ~0,
+         ))
+
+full_panel <- full_panel %>%
+  group_by(bvd_id_number) %>% 
+  mutate(year_diff_supplier_1 = year - first_order,# this is for suppliers
+         year_diff_supplier_0 = year - registration_year,# this is for potential suppliers
+         pre_log_operating_revenue_turnover = case_when(
+           supplier_status == 1 & year_diff_supplier_1 == 0 ~ log_operating_revenue_turnover_,
+           supplier_status == 0 & year_diff_supplier_0 == 0 ~ log_operating_revenue_turnover_,
+           TRUE ~ NA_real_
+         ),
+         pre_log_ebitda = case_when(
+           supplier_status == 1 & year_diff_supplier_1 == 0 ~ log_ebitda,
+           supplier_status == 0 & year_diff_supplier_0 == 0 ~ log_ebitda,
+           TRUE ~ NA_real_),
+         pre_log_application_stock = case_when(
+           supplier_status==1 & year_diff_supplier_1 == 0 ~ log_application_stock,
+           supplier_status==0 & year_diff_supplier_0 == 0 ~ log_application_stock
+         ),
+         pre_log_fixed_assets = case_when(
+           supplier_status == 1 & year_diff_supplier_1 == 0 ~ log_fixed_assets,
+           supplier_status == 0 & year_diff_supplier_0 == 0 ~ log_fixed_assets,
+           TRUE ~ NA_real_))%>%
+  ungroup() %>% 
+  arrange(bvd_id_number, year) %>%
+  group_by(bvd_id_number) %>%
+  fill(pre_log_operating_revenue_turnover, pre_log_ebitda, pre_log_application_stock,pre_log_fixed_assets, .direction = "downup") %>% # this fills up the entire colum
+  ungroup()  # Remove the temporary columns
+
+duplicates_check <- full_panel %>%distinct() %>% filter(supplier_status==0) %>% 
+  group_by(bvd_id_number, year) %>% summarize(number_obs= n())
+
+saveRDS(full_panel, paste0(data_proc_dir, "full_panel"))
