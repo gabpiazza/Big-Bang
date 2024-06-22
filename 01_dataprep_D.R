@@ -9,7 +9,7 @@
 ## 1.1 Install & Load packages --------------------------------------------------------
 
 # some setup: a cheeky little bit of code to check and install packages
-need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate", "readxl") # list packages needed
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "lubridate", "readxl") # list packages needed
 have <- need %in% rownames(installed.packages()) # checks packages you have
 if(any(!have)) install.packages(need[!have]) # install missing packages
 invisible(lapply(need, library, character.only=T)) # load needed packages
@@ -25,9 +25,10 @@ options(scipen = 999)
 ## 2.1 Setting up the directory -------------------------------------------------------
 ## Setting up the directories for the data folders 
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
-
-
+data_proc_dir<<- "~/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+file.exists(paste0(data_proc_dir, suppliers_file))
 suppliers_file <- "full_panel_suppliers"
 potential_suppliers_file <- "full_panel_potential_suppliers"
 ## 2.2 Load the data -------------------------------------------------------
@@ -51,7 +52,7 @@ number_potential_suppliers<- unique(full_panel_potential_suppliers$bvd_id_number
 # 3. Data Manipulation  ---------------------------------------------------
 
 
-## 3.1 Create the same variables  -----------------------------------------
+## 3.1 Create the same variables for the two dataframes-----------------------------------------
 
 # Function to compare two dataframes
 compare_dataframes <- function(df1, df2) {
@@ -217,37 +218,35 @@ full_panel <- full_panel %>%
   fill(pre_log_operating_revenue_turnover, pre_log_ebitda, pre_log_application_stock,pre_log_fixed_assets, .direction = "downup") %>% # this fills up the entire colum
   ungroup()  # Remove the temporary columns
 
-# Assuming full_panel is your data frame
-# Step 1: Calculate the minimum of year and incorporationyear for each bvd_id_number
-min_years <- full_panel %>%
-  group_by(bvd_id_number) %>%
-  dplyr::summarize(min_valid_year = min(c(min(year, na.rm = TRUE), min(incorporationyear, na.rm = TRUE)), na.rm = TRUE))
-
-# Step 2: Join the minimum values back to the original dataset
-full_panel_with_min <- full_panel %>%
-  left_join(min_years, by = "bvd_id_number")
-
-# Step 3: Filter the dataset based on the joined minimum value
-filtered_panel <- full_panel_with_min %>%
-  filter(year >= min_valid_year)
+##3.4 Drop those observations with no post-treatment that are tre --------
 
 
 # Step 1: Filter the dataset to include only rows where supplier_status is equal to 1
 filtered_data <- full_panel %>%
   filter(supplier_status == 1)
 
-filtered_data_ESA33610627<- filtered_data %>% filter(bvd_id_number =="ESA33610627") %>% select(bvd_id_number, year, first_order, treat, number_applications,status_simple, last_avail_year)
 
 # Step 2: Group by bvd_id_number and count the years where treat is equal to 0
 treat_zero_counts <- filtered_data %>%
   group_by(bvd_id_number) %>%
   dplyr::summarize(count_treat_zero = sum(treat == 0, na.rm = TRUE))
 
+# Step 3: Group by bvd_id_number and count the years where treat is equal to 1
 treat_one_counts <- filtered_data %>%
   group_by(bvd_id_number) %>%
   dplyr::summarize(count_treat_one = sum(treat == 1, na.rm = TRUE))
+# I want to exclude those treated that only have no treated years - the first order was received after they were inactive
+# somethign wrong with matching or data
+no_post_treatment <- treat_one_counts %>% filter(count_treat_one==0) %>% select(bvd_id_number) %>% 
+  distinct() %>% 
+  pull(bvd_id_number) 
 
-duplicates_check <- full_panel %>%distinct() %>% filter(supplier_status==0) %>% 
-  dplyr::group_by(bvd_id_number, year) %>% dplyr::summarize(number_obs= n())
+grouped_data<- filtered_data %>% select(bvd_id_number, first_order) %>% left_join(treat_zero_counts) %>% 
+ left_join(treat_one_counts) %>% distinct()
+few_years <- grouped_data %>% filter(count_treat_zero==1 & count_treat_one==1) %>% 
+  select(bvd_id_number) %>% distinct() %>% pull(bvd_id_number)
+
+full_panel<- full_panel %>% filter(bvd_id_number %notin% c(no_post_treatment, few_years))
+
 
 saveRDS(full_panel, paste0(data_proc_dir, "full_panel"))
