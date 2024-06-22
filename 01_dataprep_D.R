@@ -138,11 +138,11 @@ full_panel<- rbind(full_panel_suppliers, full_panel_potential_suppliers)
 ##3.2 Create the treatment variables  -----------------------------------------
 
 # Create a treatment variable
-full_panel<- full_panel%>% # 
-  mutate(treat = case_when(
-    first_order >0 ~1,
-    first_order ==0 ~0
-  ))
+# Creating the treat variable based on the condition
+full_panel <- full_panel %>%
+  group_by(bvd_id_number) %>%
+  mutate(treat = ifelse(first_order <= year, 1, 0)) %>%
+  ungroup()  # Ungroup after the operation
 # Creating the relative time 
 full_panel<- full_panel %>% 
   mutate(time_to_treat = case_when(
@@ -217,7 +217,37 @@ full_panel <- full_panel %>%
   fill(pre_log_operating_revenue_turnover, pre_log_ebitda, pre_log_application_stock,pre_log_fixed_assets, .direction = "downup") %>% # this fills up the entire colum
   ungroup()  # Remove the temporary columns
 
+# Assuming full_panel is your data frame
+# Step 1: Calculate the minimum of year and incorporationyear for each bvd_id_number
+min_years <- full_panel %>%
+  group_by(bvd_id_number) %>%
+  dplyr::summarize(min_valid_year = min(c(min(year, na.rm = TRUE), min(incorporationyear, na.rm = TRUE)), na.rm = TRUE))
+
+# Step 2: Join the minimum values back to the original dataset
+full_panel_with_min <- full_panel %>%
+  left_join(min_years, by = "bvd_id_number")
+
+# Step 3: Filter the dataset based on the joined minimum value
+filtered_panel <- full_panel_with_min %>%
+  filter(year >= min_valid_year)
+
+
+# Step 1: Filter the dataset to include only rows where supplier_status is equal to 1
+filtered_data <- full_panel %>%
+  filter(supplier_status == 1)
+
+filtered_data_ESA33610627<- filtered_data %>% filter(bvd_id_number =="ESA33610627") %>% select(bvd_id_number, year, first_order, treat, number_applications,status_simple, last_avail_year)
+
+# Step 2: Group by bvd_id_number and count the years where treat is equal to 0
+treat_zero_counts <- filtered_data %>%
+  group_by(bvd_id_number) %>%
+  dplyr::summarize(count_treat_zero = sum(treat == 0, na.rm = TRUE))
+
+treat_one_counts <- filtered_data %>%
+  group_by(bvd_id_number) %>%
+  dplyr::summarize(count_treat_one = sum(treat == 1, na.rm = TRUE))
+
 duplicates_check <- full_panel %>%distinct() %>% filter(supplier_status==0) %>% 
-  group_by(bvd_id_number, year) %>% summarize(number_obs= n())
+  dplyr::group_by(bvd_id_number, year) %>% dplyr::summarize(number_obs= n())
 
 saveRDS(full_panel, paste0(data_proc_dir, "full_panel"))
