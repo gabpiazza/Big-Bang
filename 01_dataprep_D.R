@@ -9,7 +9,7 @@
 ## 1.1 Install & Load packages --------------------------------------------------------
 
 # some setup: a cheeky little bit of code to check and install packages
-need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "beepr", "lubridate", "readxl") # list packages needed
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign", "haven", "fuzzyjoin", "data.table", "visdat", "lubridate", "readxl") # list packages needed
 have <- need %in% rownames(installed.packages()) # checks packages you have
 if(any(!have)) install.packages(need[!have]) # install missing packages
 invisible(lapply(need, library, character.only=T)) # load needed packages
@@ -25,9 +25,10 @@ options(scipen = 999)
 ## 2.1 Setting up the directory -------------------------------------------------------
 ## Setting up the directories for the data folders 
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
-
-
+data_proc_dir<<- "~/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+file.exists(paste0(data_proc_dir, suppliers_file))
 suppliers_file <- "full_panel_suppliers"
 potential_suppliers_file <- "full_panel_potential_suppliers"
 ## 2.2 Load the data -------------------------------------------------------
@@ -221,7 +222,7 @@ full_panel <- full_panel %>%
 # Step 1: Calculate the minimum of year and incorporationyear for each bvd_id_number
 min_years <- full_panel %>%
   group_by(bvd_id_number) %>%
-  dplyr::summarize(min_valid_year = min(c(min(year, na.rm = TRUE), min(incorporationyear, na.rm = TRUE)), na.rm = TRUE))
+  dplyr::summarize(min_valid_year = min(c(min(year, na.rm = TRUE), min(incorporation_year, na.rm = TRUE)), na.rm = TRUE))
 
 # Step 2: Join the minimum values back to the original dataset
 full_panel_with_min <- full_panel %>%
