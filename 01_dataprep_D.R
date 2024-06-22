@@ -28,7 +28,6 @@ data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 data_proc_dir<<- "~/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
-file.exists(paste0(data_proc_dir, suppliers_file))
 suppliers_file <- "full_panel_suppliers"
 potential_suppliers_file <- "full_panel_potential_suppliers"
 ## 2.2 Load the data -------------------------------------------------------
@@ -249,4 +248,4 @@ few_years <- grouped_data %>% filter(count_treat_zero==1 & count_treat_one==1) %
 full_panel<- full_panel %>% filter(bvd_id_number %notin% c(no_post_treatment, few_years))
 
 
-saveRDS(full_panel, paste0(data_proc_dir, "full_panel"))
+saveRDS(full_panel, paste0(data_proc_dir, "full_panel.rds"))
