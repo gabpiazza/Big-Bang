@@ -283,17 +283,12 @@ full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
 full_panel$bvd_id_numeric <- as.numeric(as.factor(full_panel$bvd_id_number))
 
 y_vars<- vars <- c(
-                   "probability_weighted_patent_apps", "probability_multiple_inventors_apps", "probability_collaborations_apps",
-                   "probability_multiple_patent_offices_apps", "probability_publications", "probability_WIPO_code_pubs",
-                   "probability_weighted_patent_pubs", "probability_multiple_inventors_pubs", "probability_collaborations_pubs",
-                   "probability_multiple_patent_offices_pubs", "log_applications", "asinh_applications",
-                   "log_WIPO_code_apps", "log_weighted_patent_apps",
-                   "asinh_weighted_patent_apps", "log_multiple_inventors_apps", 
-                   "log_collaborations_apps",  "log_multiple_patent_offices_apps",
+                   "probability_weighted_patent_apps",  "probability_publications", 
+                   "probability_weighted_patent_pubs",  "log_applications", "asinh_applications",
+                   "log_weighted_patent_apps",
+                   "asinh_weighted_patent_apps", 
                    "log_publications", "asinh_publications",
-                   "log_WIPO_code_pubs",  "log_weighted_patent_pubs",
-                    "log_multiple_inventors_pubs", 
-                   "log_collaborations_pubs")
+                     "log_weighted_patent_pubs")
 
 years_few_observations <- c(1995,2008, 2020)
 
@@ -305,5 +300,5 @@ years_few_observations <- c(1995,2008, 2020)
 
 cs_all_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
 library(beepr)
-beep()
+beep
 
