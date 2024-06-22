@@ -144,6 +144,53 @@ run_all_analyses_multiple_combinations <- function(y_vars, dataset) {
   
   return(results)
 }
+
+run_all_analyses_multiple_combinations_ht <- function(y_vars, dataset) {
+  
+  results <- list()
+  
+  control_groups <- c('nevertreated', 'notyettreated')
+  
+  # Create all possible covariate combinations
+  all_covariates <- c("max_tech","pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_application_stock","pre_log_fixed_assets")
+  
+  covariate_combinations <- list("none" = NULL)
+  
+  # Loop through all sizes of combinations
+  for (i in 1:length(all_covariates)) {
+    combinations <- combn(all_covariates, i)
+    for (j in 1:ncol(combinations)) {
+      combination_name <- paste(combinations[,j], collapse="_")
+      covariate_combinations[[combination_name]] <- combinations[,j]
+    }
+  }
+  
+  # Calculate total number of iterations
+  total_iterations <- length(y_vars) * length(control_groups) * length(covariate_combinations)
+  
+  # Create a progress bar
+  pb <- progress_bar$new(total = total_iterations, format = "[:bar] :percent :elapsedfull")
+  
+  # Analyze data with each combination
+  for (y_var in y_vars) {
+    for (control_group in control_groups) {
+      for (cov_name in names(covariate_combinations)) {
+        covariates <- covariate_combinations[[cov_name]]
+        results_key <- paste(y_var, control_group, cov_name, sep = "_")
+        
+        results[[results_key]] <- perform_analysis(y_var, control_group, dataset, covariates)
+        
+        # Update the progress bar
+        pb$tick()
+      }
+    }
+  }
+  
+  return(results)
+}
+
+
+
 run_not_yet_analyses <- function(y_vars, dataset) {
   
   results <- list()
@@ -278,9 +325,11 @@ full_panel_file <- "full_panel"
 
 
 
-## 2.2 Loading the data  --------------------------------------------------------------------
+## 2.2 Loading and preparing the data  --------------------------------------------------------------------
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
 full_panel$bvd_id_numeric <- as.numeric(as.factor(full_panel$bvd_id_number))
+full_panel_ht <- full_panel %>% filter(max_tech==1)
+full_panel_lt<- full_panel %>% filter(max_tech==0)
 
 y_vars<- vars <- c(
                    "probability_weighted_patent_apps",  "probability_publications", 
@@ -290,7 +339,7 @@ y_vars<- vars <- c(
                    "log_publications", "asinh_publications",
                      "log_weighted_patent_pubs")
 
-years_few_observations <- c(1995,2008, 2020)
+years_few_observations <- c(2008, 2020)
 
 
 # 3. Run the analysis with CS ---------------------------------------------
@@ -300,5 +349,31 @@ years_few_observations <- c(1995,2008, 2020)
 
 cs_all_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
 library(beepr)
-beep
+beep()
+sim_ratios_all<- lapply(cs_all_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
 
+
+## 3.2 High-tech suppliers ------------------------------------------------
+cs_ht_results <- run_all_analyses_multiple_combinations_ht(y_vars, full_panel_ht)
+sim_ratios_ht <- lapply(cs_ht_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+## 3.3 Low-tech suppliers ------------------------------------------------
+cs_lt_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_lt)
+sim_ratios_lt <- lapply(cs_lt_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
