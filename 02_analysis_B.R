@@ -11,7 +11,7 @@
 
 # some setup: a cheeky little bit of code to check and install packages
 need <- c(
-  "Matching", "panelView", "tjbal", "MatchIt", "WeightIt", "tidyverse", 
+  "Matching", "panelView", "tjbal", "MatchIt", "parallel","WeightIt", "tidyverse", 
   "rstatix", "bacondecomp", "ggpubr", "gsynth", "did", "modelsummary", 
   "hrbrthemes", "tidyr", "viridis", "janitor", "tmap", "leaflet", "sf", 
   "terra", "cobalt", "here", "dplyr", "spData", "rnaturalearth", 
@@ -31,6 +31,7 @@ options(scipen = 999)
 ## 1.2 Create functions ----------------------------------------------------
 `%notin%` <- Negate(`%in%`)
 
+# Placeholder perform_analysis function
 perform_analysis <- function(y_var, control_group_type, dataset, covariates = NULL) {
   data_filtered <- dataset %>%
     filter(first_order %notin% years_few_observations)
@@ -38,8 +39,7 @@ perform_analysis <- function(y_var, control_group_type, dataset, covariates = NU
   if (!is.null(covariates) && length(covariates) > 0) {
     xformla <- as.formula(paste( "~", paste(covariates, collapse = " + ")))
   } else {
-    xformla <- as.formula(paste( "~ 1"))
-    
+    xformla <- as.formula("~ 1")
   }
   
   # Expected column names
@@ -63,17 +63,14 @@ perform_analysis <- function(y_var, control_group_type, dataset, covariates = NU
     clustervars = "bvd_id_numeric", 
     pl=TRUE, 
     cores=8,
-    bstrap = T,
+    bstrap = TRUE,
     panel = TRUE,
     biters = 3000,
-    allow_unbalanced_panel = TRUE,
+    allow_unbalanced_panel = TRUE
   )
   
-  # You can add further calculations if needed.
-  
-  
   # Compute the different results
-  cs_results.dyn <- aggte(cs_results, type = "dynamic", na.rm = TRUE, max_e = 10, min_e = -10, cband = F)
+  cs_results.dyn <- aggte(cs_results, type = "dynamic", na.rm = TRUE, max_e = 10, min_e = -10, cband = FALSE)
   cs_results.sim <- aggte(cs_results, type = "simple", na.rm = TRUE)
   cs_results.grp <- aggte(cs_results, type = "group", na.rm = TRUE)
   cs_results.cal <- aggte(cs_results, type = "calendar", na.rm = TRUE)
@@ -100,7 +97,70 @@ perform_analysis <- function(y_var, control_group_type, dataset, covariates = NU
   return(results_list)
 }
 
-
+run_all_analyses_multiple_combinations_parallel <- function(y_vars, dataset) {
+  
+  results <- list()
+  
+  control_groups <- c('nevertreated', 'notyettreated')
+  
+  # Create all possible covariate combinations
+  all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
+  
+  covariate_combinations <- list("none" = NULL)
+  
+  # Loop through all sizes of combinations
+  for (i in 1:length(all_covariates)) {
+    combinations <- combn(all_covariates, i)
+    for (j in 1:ncol(combinations)) {
+      combination_name <- paste(combinations[,j], collapse="_")
+      covariate_combinations[[combination_name]] <- combinations[,j]
+    }
+  }
+  
+  # Calculate total number of iterations
+  total_iterations <- length(y_vars) * length(control_groups) * length(covariate_combinations)
+  
+  # Create a progress bar
+  pb <- progress_bar$new(total = total_iterations, format = "[:bar] :percent :elapsedfull")
+  
+  # Function to wrap the analysis
+  analysis_function <- function(params, dataset, covariate_combinations) {
+    y_var <- params[[1]]
+    control_group <- params[[2]]
+    cov_name <- params[[3]]
+    covariates <- covariate_combinations[[cov_name]]
+    results_key <- paste(y_var, control_group, cov_name, sep = "_")
+    result <- perform_analysis(y_var, control_group, dataset, covariates)
+    return(list(key = results_key, result = result))
+  }
+  
+  # Create a list of all parameter combinations
+  param_list <- expand.grid(y_vars, control_groups, names(covariate_combinations), stringsAsFactors = FALSE)
+  param_list <- split(param_list, seq(nrow(param_list)))
+  
+  # Use parallel processing
+  no_cores <- detectCores() - 1
+  cl <- makeCluster(no_cores)
+  
+  # Export necessary variables and functions to the cluster
+  clusterExport(cl, varlist = c("perform_analysis", "covariate_combinations", "dataset"))
+  clusterEvalQ(cl, library(dplyr))
+  clusterEvalQ(cl, library(did))
+  
+  # Perform the analyses in parallel
+  results_list <- parLapply(cl, param_list, analysis_function, dataset = dataset, covariate_combinations = covariate_combinations)
+  
+  # Stop the cluster
+  stopCluster(cl)
+  
+  # Update the progress bar and collect the results
+  for (res in results_list) {
+    results[[res$key]] <- res$result
+    pb$tick()
+  }
+  
+  return(results)
+}
 run_all_analyses_multiple_combinations <- function(y_vars, dataset) {
   
   results <- list()
@@ -476,6 +536,7 @@ save_all_results(cs_greater_than_100k_results, path_to_save)
 
 ## #3.8 SME -------------------------------------------------------------------
 cs_SME_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_SME)
+beep()
 sim_ratios_SME <- lapply(cs_SME_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
