@@ -360,7 +360,7 @@ sim_ratios_all<- lapply(cs_all_results, function(x) {
 
 
 ## 3.2 High-tech suppliers ------------------------------------------------
-cs_ht_results <- run_all_analyses_multiple_combinations_ht(y_vars, full_panel_ht)
+cs_ht_results <- run_all_analyses_multiple_combinations_ht(y_vars, full_panel)
 sim_ratios_ht <- lapply(cs_ht_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)

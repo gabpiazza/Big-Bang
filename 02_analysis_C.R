@@ -48,14 +48,8 @@ full_panel_file <- "full_panel"
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
 
 
-p1 <- quantile(full_panel$log_applications, 0.01)
-p99 <- quantile(full_panel$log_applications, 0.99)
 
-# Identify bvd_id_number for the top 1% and bottom 1% of patent_stock
-outlier_ids <- full_panel %>%
-  filter(log_applications >= p99) %>%
-  distinct() %>% 
-  pull(bvd_id_number) 
+full_panel
 
 
 
@@ -71,11 +65,27 @@ outlier_ids <- full_panel %>%
 
 # Run static TWFE, with SEs clustered at the state level
 
-full_panel <- full_panel %>% mutate(postTreated = first_order>0 & year >= first_order)
-model_static <- feols(log_applications ~ postTreated | 
-                                       year+bvd_id_number, data = full_panel, cluster= "bvd_id_number" )                           ## FEs
-twfe_static <- feols(dins ~ postTreated | stfips + year, data = df, cluster = "stfips")
-summary(twfe_static)
 
+full_panel <- full_panel %>% mutate(postTreated = first_order>0 & year >= first_order,
+                                    time_to_treat = ifelse(supplier_status == 0, -3000, time_to_treat))
+
+
+model_static_ht<- feols(log_application_stock~  postTreated +(year*pre_log_ebitda) +i(max_tech)| 
+                                       year+bvd_id_number, data = full_panel %>% filter(first_order %notin% c(1995,1996, 2008)), cluster= "bvd_id_number" )  
+iplot(model_static_ht)
+                          summary(fixef(model_static_ht))
+res_effect_1 <- feols(log_application_stock ~ (year*pre_log_fixed_assets)
+                    + sunab(first_order, year)| year +bvd_id_number, full_panel %>% filter(first_order %notin% c(1995,1996, 2008))
+                    
+                    )
+res_effect_2<-feols(log_application_stock ~ i(max_tech)+
+                      + sunab(first_order, year)| year +bvd_id_number, full_panel%>% filter(first_order %notin% c(1995,1996, 2008) & supplier_status ==1))
+iplot(res_effect_1)
+iplot(res_effect_2)
+summary(res_effect_1, agg = "att")
+## FEs
+twfe_static <- feols(dins ~ postTreated | stfips + year, data = df, cluster = "stfips")
+
+summa
 
 ### Create the filtered dataset  (removin the outliers)

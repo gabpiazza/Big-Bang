@@ -30,7 +30,12 @@ data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 full_panel_file <- "full_panel"
 #Load the data
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
-
+top_1_percent_threshold <- quantile(full_panel$number_applications, 0.99)
+top_1_percent_companies <- full_panel %>%
+  filter(number_applications > top_1_percent_threshold) %>%
+  select(bvd_id_number) %>% distinct() %>% 
+  pull(bvd_id_number)
+full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies)
 
 # ## 3. Descriptive -------------------------------------------------------
 

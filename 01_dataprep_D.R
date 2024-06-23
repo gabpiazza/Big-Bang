@@ -190,7 +190,7 @@ full_panel<- full_panel %>%
            size_classification %in% c("Large company","Very large company") ~0,
          ))
 
-full_panel <- full_panel %>%
+pre_covariates<- full_panel %>%
   group_by(bvd_id_number) %>% 
   mutate(year_diff_supplier_1 = year - first_order,# this is for suppliers
          year_diff_supplier_0 = year - registration_year,# this is for potential suppliers
@@ -215,7 +215,26 @@ full_panel <- full_panel %>%
   arrange(bvd_id_number, year) %>%
   group_by(bvd_id_number) %>%
   fill(pre_log_operating_revenue_turnover, pre_log_ebitda, pre_log_application_stock,pre_log_fixed_assets, .direction = "downup") %>% # this fills up the entire colum
-  ungroup()  # Remove the temporary columns
+  ungroup() %>% 
+  select(bvd_id_number,supplier_status, pre_log_operating_revenue_turnover, pre_log_ebitda, pre_log_application_stock, pre_log_fixed_assets) %>% distinct() 
+  
+  min_year_values<- full_panel %>% 
+  group_by(bvd_id_number) %>% 
+  filter(year== min(year)) %>% 
+  select(bvd_id_number, log_operating_revenue_turnover_, log_ebitda, log_fixed_assets, supplier_status) 
+  
+pre_covariates<- pre_covariates %>% mutate(
+  pre_log_fixed_assets = ifelse(supplier_status == 0 & is.na(pre_log_fixed_assets), min_year_values$log_fixed_assets, pre_log_fixed_assets),
+  pre_log_ebitda = ifelse(supplier_status == 0 & is.na(pre_log_ebitda), min_year_values$log_ebitda, pre_log_ebitda),
+  pre_log_operating_revenue_turnover = ifelse(supplier_status == 0 & is.na(pre_log_operating_revenue_turnover), min_year_values$log_operating_revenue_turnover_, pre_log_operating_revenue_turnover)
+) %>% drop_na() %>% select(-supplier_status)
+  
+
+
+
+full_panel<- full_panel %>% left_join(pre_covariates)
+
+full_panel<- full_panel %>% filter(bvd_id_number %in% pre_covariates$bvd_id_number)
 
 ##3.4 Drop those observations with no post-treatment that are tre --------
 
@@ -246,6 +265,22 @@ few_years <- grouped_data %>% filter(count_treat_zero==1 & count_treat_one==1) %
   select(bvd_id_number) %>% distinct() %>% pull(bvd_id_number)
 
 full_panel<- full_panel %>% filter(bvd_id_number %notin% c(no_post_treatment, few_years))
+
+
+top_1_percent_threshold_applications <- quantile(full_panel$number_applications, 0.99)
+top_1_percent_threshold_turnover <- quantile(full_panel$pre_log_operating_revenue_turnover, 0.99)
+
+top_1_percent_companies_applications <- full_panel %>%
+  filter(number_applications > top_1_percent_threshold_applications) %>%
+  select(bvd_id_number) %>% distinct() %>% 
+  pull(bvd_id_number)
+top_1_percent_companies_turnover <- full_panel %>%
+  filter(pre_log_operating_revenue_turnover > top_1_percent_threshold_turnover) %>%
+  select(bvd_id_number) %>% distinct() %>% 
+  pull(bvd_id_number)
+
+full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies_applications)
+full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies_turnover)
 
 
 saveRDS(full_panel, paste0(data_proc_dir, "full_panel.rds"))
