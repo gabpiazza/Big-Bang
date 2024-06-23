@@ -152,7 +152,7 @@ run_all_analyses_multiple_combinations_ht <- function(y_vars, dataset) {
   control_groups <- c('nevertreated', 'notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c("max_tech","pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_application_stock","pre_log_fixed_assets")
+  all_covariates <- c("first_order_tech","pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_application_stock","pre_log_fixed_assets")
   
   covariate_combinations <- list("none" = NULL)
   
@@ -328,18 +328,17 @@ full_panel_file <- "full_panel"
 ## 2.2 Loading and preparing the data  --------------------------------------------------------------------
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
 full_panel$bvd_id_numeric <- as.numeric(as.factor(full_panel$bvd_id_number))
-full_panel_ht <- full_panel %>% filter(max_tech==1)
-full_panel_lt<- full_panel %>% filter(max_tech==0)
+full_panel_ht <- full_panel %>% filter(first_order_tech==1)
+full_panel_lt<- full_panel %>% filter(first_order_tech==0)
 
 y_vars<- vars <- c(
                    "probability_weighted_patent_apps",  "probability_publications", 
                    "probability_weighted_patent_pubs",  "log_applications", "asinh_applications",
-                   "log_weighted_patent_apps",
-                   "asinh_weighted_patent_apps", 
-                   "log_publications", "asinh_publications",
-                     "log_weighted_patent_pubs")
+                   "log_publications", "asinh_publications"
 
-years_few_observations <- c(2008, 2020)
+                   )
+
+years_few_observations <- c(1995, 1996, 2008, 2020)
 
 
 # 3. Run the analysis with CS ---------------------------------------------
@@ -360,7 +359,7 @@ sim_ratios_all<- lapply(cs_all_results, function(x) {
 
 
 ## 3.2 High-tech suppliers ------------------------------------------------
-cs_ht_results <- run_all_analyses_multiple_combinations_ht(y_vars, full_panel)
+cs_ht_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
 sim_ratios_ht <- lapply(cs_ht_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
