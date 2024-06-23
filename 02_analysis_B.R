@@ -433,7 +433,7 @@ path_to_save <-paste0(het_results, "cs_multiple_")
 save_all_results(cs_multiple_results, path_to_save)
 
 ## #3.5 Large Projects -------------------------------------------------------------------
-cs_large_projects_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_large_projects)
+cs_large_projects_results <- run_not_yet_analyses(y_vars, full_panel_large_projects)
 sim_ratios_large_projects <- lapply(cs_large_projects_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -461,7 +461,7 @@ save_all_results(cs_less_than_100k_results, path_to_save)
 
 
 ## #3.7 Large orders -------------------------------------------------------------------
-cs_greater_than_100k_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_greater_than_100k)
+cs_greater_than_100k_results <- run_not_yet_analyses(y_vars, full_panel_greater_than_100k)
 sim_ratios_greater_than_100k <- lapply(cs_greater_than_100k_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
