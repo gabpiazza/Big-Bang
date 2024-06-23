@@ -36,6 +36,7 @@ full_panel_file <- "full_panel"
 #   pull(bvd_id_number)
 # full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies)
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
+fr_it_es_uk_orders<- readRDS("fr_it_es_uk_orders")
 # ## 3. Descriptive -------------------------------------------------------
 
 number_cohorts <- full_panel %>%select(bvd_id_number, first_order) %>%
@@ -82,3 +83,44 @@ writeLines(latex_code, "table_1.tex")
 
 
 
+##3.1. Just Retour Orders ------------------------------------------------------
+#Calculate the orders by country 
+
+orders_by_country_tech<- fr_it_es_uk_orders %>% 
+  group_by(country, order_date, tech_level) %>% 
+  summarise(number_orders = n_distinct(order_number),
+            total_amount = sum(chf_amount))
+orders_by_country_tech_wide <- orders_by_country_tech %>%
+  pivot_wider(names_from = tech_level, 
+              values_from = c(number_orders, total_amount),
+              names_sep = "_") %>% 
+  rename(number_orders_low_tech = number_orders_0, 
+         number_orders_high_tech = number_orders_1, 
+         total_amount_low_tech = total_amount_0, 
+         total_amount_high_tech = total_amount_1) %>% 
+  replace_na(list(number_orders_low_tech = 0, number_orders_high_tech = 0,
+                  total_amount_low_tech=0,total_amount_high_tech=0)) %>% 
+  mutate(number_orders = number_orders_low_tech+number_orders_high_tech, 
+         total_amount = total_amount_low_tech+total_amount_high_tech)
+
+
+
+
+return_by_year_and_country<- fr_it_es_uk_orders %>% 
+  select(country, order_date, coefficient_return_supplies) %>% 
+  distinct()
+
+just_retour_panel<- orders_by_country_tech_wide %>% left_join(return_by_year_and_country)
+just_retour_panel<- just_retour_panel %>% drop_na()
+just_retour_panel<-just_retour_panel %>% 
+arrange(country, order_date) %>%  # Ensure data is sorted by country and order_date
+  group_by(country) %>%             # Group by country to calculate lag within each country
+  mutate(lag_coefficient = lag(coefficient_return_supplies)) %>%
+  ungroup()
+
+scatter_plot_orders <- ggplot(just_retour_panel, aes(x = coefficient_return_supplies, y = number_orders)) +
+  geom_point() +geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Scatter Plot of Coefficient vs Total Number of Orders",
+       x = "Return coefficient",
+       y = "Total Number of Orders") +
+  theme_minimal()
