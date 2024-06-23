@@ -108,7 +108,7 @@ run_all_analyses_multiple_combinations <- function(y_vars, dataset) {
   control_groups <- c('nevertreated', 'notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_application_stock","pre_log_fixed_assets")
+  all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
   
   covariate_combinations <- list("none" = NULL)
   
@@ -198,7 +198,7 @@ run_not_yet_analyses <- function(y_vars, dataset) {
   control_groups <- c('notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c( "pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_application_stock","pre_log_fixed_assets")
+  all_covariates <- c( "pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
   
   covariate_combinations <- list("none" = NULL)
   
@@ -322,19 +322,30 @@ save_all_results <- function(all_results, save_path) {
 data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 full_panel_file <- "full_panel"
-
-
+output_folder<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/results/output/"
+main_results<- paste0(output_folder, "main/")
+het_results<- paste0(output_folder, "heterogeneity/")
+mechanisms_results <- paste0(output_folder, "mechanisms/")
 
 ## 2.2 Loading and preparing the data  --------------------------------------------------------------------
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
 full_panel$bvd_id_numeric <- as.numeric(as.factor(full_panel$bvd_id_number))
 full_panel_ht <- full_panel %>% filter(first_order_tech==1)
 full_panel_lt<- full_panel %>% filter(first_order_tech==0)
+full_panel_one<- full_panel %>% filter(total_orders ==1)
+full_panel_multiple<- full_panel %>% filter(total_orders >1)
+full_panel_large_projects<- full_panel %>% filter(subproject_1_first_year %in% c("LHC", "HL"))
+full_panel_less_than_100k<- full_panel %>% filter(first_order_amount <=100000)
+full_panel_greater_than_100k<- full_panel %>% filter(first_order_amount >100000)
+full_panel_SME<- full_panel %>% filter(SME_status ==1)
+full_panel_start_ups<- full_panel %>% filter(age<=5)
 
-y_vars<- vars <- c(
-                   "probability_weighted_patent_apps",  "probability_publications", 
-                   "probability_weighted_patent_pubs",  "log_applications", "asinh_applications",
-                   "log_publications", "asinh_publications"
+
+
+y_vars<- vars <- c( "probability_publications", "probability_applications", 
+                    "log_applications", "log_application_stock",
+                    "log_weighted_patent_apps",
+                   "log_publications", "log_publication_stock"
 
                    )
 
@@ -357,9 +368,14 @@ sim_ratios_all<- lapply(cs_all_results, function(x) {
   }
 })
 
+data_frame_sim_ratio_all_results<- as.data.frame(sim_ratios_all)
+sim_ratios_all_long <- gather(data_frame_sim_ratio_all_results, key = "variable", value = "value")
+
+path_to_save <-paste0(main_results, "cs_all_")
+save_all_results(cs_all_results, path_to_save)
 
 ## 3.2 High-tech suppliers ------------------------------------------------
-cs_ht_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
+cs_ht_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_ht)
 sim_ratios_ht <- lapply(cs_ht_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -367,6 +383,12 @@ sim_ratios_ht <- lapply(cs_ht_results, function(x) {
     return(NULL)
   }
 })
+data_frame_sim_ratio_ht_results<- as.data.frame(sim_ratios_ht)
+sim_ratios_ht_long <- gather(data_frame_sim_ratio_ht_results, key = "variable", value = "value")
+
+path_to_save <-paste0(main_results, "cs_ht_")
+save_all_results(cs_ht_results, path_to_save)
+
 ## 3.3 Low-tech suppliers ------------------------------------------------
 cs_lt_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_lt)
 sim_ratios_lt <- lapply(cs_lt_results, function(x) {
@@ -376,3 +398,110 @@ sim_ratios_lt <- lapply(cs_lt_results, function(x) {
     return(NULL)
   }
 })
+data_frame_sim_ratio_lt_results<- as.data.frame(sim_ratios_lt)
+sim_ratios_lt_long <- gather(data_frame_sim_ratio_lt_results, key = "variable", value = "value")
+path_to_save <-paste0(main_results, "cs_lt_")
+save_all_results(cs_lt_results, path_to_save)
+## #3.4 One order -------------------------------------------------------------------
+
+cs_one_results <- run_not_yet_analyses(y_vars, full_panel_one)
+sim_ratios_one <- lapply(cs_one_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_one_results<- as.data.frame(sim_ratios_one)
+sim_ratios_one_long <- gather(data_frame_sim_ratio_one_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_one_")
+save_all_results(cs_one_results, path_to_save)
+
+## #3.4 Multiple orders -------------------------------------------------------------------
+
+cs_multiple_results <-run_not_yet_analyses(y_vars, full_panel_multiple)
+sim_ratios_multiple <- lapply(cs_multiple_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_multiple_results<- as.data.frame(sim_ratios_multiple)
+sim_ratios_multiple_long <- gather(data_frame_sim_ratio_multiple_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_multiple_")
+save_all_results(cs_multiple_results, path_to_save)
+
+## #3.5 Large Projects -------------------------------------------------------------------
+cs_large_projects_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_large_projects)
+sim_ratios_large_projects <- lapply(cs_large_projects_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_large_projects_results<- as.data.frame(sim_ratios_large_projects)
+sim_ratios_large_projects_long <- gather(data_frame_sim_ratio_large_projects_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_large_projects_")
+save_all_results(cs_large_projects_results, path_to_save)
+## #3.6 Small orders -------------------------------------------------------------------
+cs_less_than_100k_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_less_than_100k)
+sim_ratios_less_than_100k <- lapply(cs_less_than_100k_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_less_than_100k_results<- as.data.frame(sim_ratios_less_than_100k)
+sim_ratios_less_than_100k_long <- gather(data_frame_sim_ratio_less_than_100k_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_less_than_100k_projects_")
+save_all_results(cs_less_than_100k_results, path_to_save)
+
+
+## #3.7 Large orders -------------------------------------------------------------------
+cs_greater_than_100k_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_greater_than_100k)
+sim_ratios_greater_than_100k <- lapply(cs_greater_than_100k_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_greater_than_100k_results<- as.data.frame(sim_ratios_greater_than_100k)
+sim_ratios_greater_than_100k_long <- gather(data_frame_sim_ratio_greater_than_100k_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_greater_than_100k_projects_")
+save_all_results(cs_greater_than_100k_results, path_to_save)
+
+## #3.8 SME -------------------------------------------------------------------
+cs_SME_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_SME)
+sim_ratios_SME <- lapply(cs_SME_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_SME_results<- as.data.frame(sim_ratios_SME)
+sim_ratios_SME_long <- gather(data_frame_sim_ratio_SME_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_SME_")
+save_all_results(cs_SME_results, path_to_save)
+
+## #3.9 Start_ups -------------------------------------------------------------------
+cs_startups_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_start_ups)
+sim_ratios_startups <- lapply(cs_startups_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_startups_results<- as.data.frame(sim_ratios_startups)
+sim_ratios_startups_long <- gather(data_frame_sim_ratio_startups_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_start_ups_")
+save_all_results(cs_startups_results, path_to_save)
+
+
+
+

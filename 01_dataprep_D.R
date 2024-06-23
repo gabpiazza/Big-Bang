@@ -165,7 +165,7 @@ full_panel <- full_panel %>%
     first_year = as.numeric(first_year)
   )
 
-# I have some missing values for incorporation year and therefore I use the first_year in the Oris data
+# I have some missing values for incorporation year and therefore I use the first_year in the Orbis data
 full_panel <- full_panel %>%
   mutate(
     incorporation_year_age = if_else(is.na(incorporation_year) | incorporation_year > 2022, first_year, incorporation_year)
@@ -236,7 +236,7 @@ full_panel<- full_panel %>% left_join(pre_covariates)
 
 full_panel<- full_panel %>% filter(bvd_id_number %in% pre_covariates$bvd_id_number)
 
-##3.4 Drop those observations with no post-treatment that are tre --------
+##3.4 Drop those observations with no post-treatment that are treated --------
 
 
 # Step 1: Filter the dataset to include only rows where supplier_status is equal to 1
@@ -282,5 +282,8 @@ top_1_percent_companies_turnover <- full_panel %>%
 full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies_applications)
 full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies_turnover)
 
+
+# #3.5 Max tech -----------------------------------------------------------
+check_ht<- full_panel %>% filter(is.na(max_tech))%>% select(bvd_id_number, year, first_order,max_tech, supplier_status, first_order_tech)
 
 saveRDS(full_panel, paste0(data_proc_dir, "full_panel.rds"))

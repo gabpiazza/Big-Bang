@@ -70,19 +70,17 @@ full_panel <- full_panel %>% mutate(postTreated = first_order>0 & year >= first_
                                     time_to_treat = ifelse(supplier_status == 0, -3000, time_to_treat))
 
 
-model_static_ht<- feols(log_application_stock~  postTreated +(year*pre_log_ebitda) +i(max_tech)| 
+model_static_ht<- feols(log_application_stock~ +(year*first_order_tech)+ postTreated| 
                                        year+bvd_id_number, data = full_panel %>% filter(first_order %notin% c(1995,1996, 2008)), cluster= "bvd_id_number" )  
 iplot(model_static_ht)
                           summary(fixef(model_static_ht))
-res_effect_1 <- feols(log_application_stock ~ (year*pre_log_fixed_assets)
-                    + sunab(first_order, year)| year +bvd_id_number, full_panel %>% filter(first_order %notin% c(1995,1996, 2008))
-                    
-                    )
-res_effect_2<-feols(log_application_stock ~ i(max_tech)+
-                      + sunab(first_order, year)| year +bvd_id_number, full_panel%>% filter(first_order %notin% c(1995,1996, 2008) & supplier_status ==1))
+res_effect_1 <- feols(log_application_stock ~ i(first_order_tech)
+                    + sunab(first_order, year)| year +bvd_id_number, full_panel %>% filter(first_order %notin% c(1995,1996, 2008)))
+res_effect_2<-feols(log_applications ~
+                      + sunab(first_order, year)| year +bvd_id_number[first_order_tech], full_panel%>% filter(first_order %notin% c(1995,1996, 2008)))
 iplot(res_effect_1)
 iplot(res_effect_2)
-summary(res_effect_1, agg = "att")
+summary(res_effect_2, agg = "att")
 ## FEs
 twfe_static <- feols(dins ~ postTreated | stfips + year, data = df, cluster = "stfips")
 
