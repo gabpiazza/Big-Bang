@@ -398,6 +398,7 @@ full_panel_large_projects<- full_panel %>% filter(subproject_1_first_year %in% c
 full_panel_less_than_100k<- full_panel %>% filter(first_order_amount <=100000)
 full_panel_greater_than_100k<- full_panel %>% filter(first_order_amount >100000)
 full_panel_SME<- full_panel %>% filter(SME_status ==1)
+full_panel_large_companies <- full_panel %>% filter(SME_status ==0)
 full_panel_start_ups<- full_panel %>% filter(age<=5)
 
 
@@ -408,6 +409,18 @@ y_vars<- vars <- c( "probability_publications", "probability_applications",
                    "log_publications", "log_publication_stock"
 
                    )
+y_vars_mechanisms  <- c(
+  "probability_WIPO_code_apps",
+  "probability_collaborations_apps",
+  "probability_multiple_patent_offices_apps",
+  "log_WIPO_code_apps",
+  "log_multiple_inventors_apps",
+  "log_collaborations_apps",
+  "log_multiple_patent_offices_apps")
+ 
+
+
+
 
 years_few_observations <- c(1995, 1996, 2008, 2020)
 
@@ -536,7 +549,7 @@ save_all_results(cs_greater_than_100k_results, path_to_save)
 
 ## #3.8 SME -------------------------------------------------------------------
 cs_SME_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_SME)
-beep()
+beep(3)
 sim_ratios_SME <- lapply(cs_SME_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -548,8 +561,22 @@ data_frame_sim_ratio_SME_results<- as.data.frame(sim_ratios_SME)
 sim_ratios_SME_long <- gather(data_frame_sim_ratio_SME_results, key = "variable", value = "value")
 path_to_save <-paste0(het_results, "cs_SME_")
 save_all_results(cs_SME_results, path_to_save)
-
-## #3.9 Start_ups -------------------------------------------------------------------
+## #3.9 Large Companies -------------------------------------------------------------------
+cs_large_companies_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_large_companies)
+beep(3)
+sim_ratios_large_companies <- lapply(cs_large_companies_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+data_frame_sim_ratio_large_companies_results<- as.data.frame(sim_ratios_large_companies)
+sim_ratios_large_companies_long <- gather(data_frame_sim_ratio_large_companies_results, key = "variable", value = "value")
+path_to_save <-paste0(het_results, "cs_large_companies_")
+save_all_results(cs_large_companies_results, path_to_save)
+beep(3)
+## #3.10 Start_ups -------------------------------------------------------------------
 cs_startups_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_start_ups)
 sim_ratios_startups <- lapply(cs_startups_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
@@ -564,5 +591,28 @@ path_to_save <-paste0(het_results, "cs_start_ups_")
 save_all_results(cs_startups_results, path_to_save)
 
 
+
+
+# 4. Mechanisms -----------------------------------------------------------
+
+cs_all_mech_results <- run_all_analyses_multiple_combinations(y_vars_mechanisms, full_panel)
+library(beepr)
+beep()
+sim_ratios_mechanisms_all<- lapply(cs_all_mech_results, function(x) {
+  if ("sim_ratio" %in% names(x)) {
+    return(x$sim_ratio)
+  } else {
+    return(NULL)
+  }
+})
+
+beep(5)
+
+data_frame_sim_ratio_all_mechanisms_results<- as.data.frame(sim_ratios_mechanisms_all)
+sim_ratios_all_mechanisms_long <- gather(data_frame_sim_ratio_all_mechanisms_results, key = "variable", value = "value")
+
+path_to_save <-paste0(mechanisms_results, "cs_all_")
+save_all_results(cs_all_mech_results, path_to_save)
+beep()
 
 
