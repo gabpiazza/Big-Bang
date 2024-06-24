@@ -17,12 +17,14 @@
 #1 Load libraries, functions and data  ----------------------------------------------------------
 
 ###1.1 Load libraries ----------------------------------------------------
+# some setup: a cheeky little bit of code to check and install packages
+need <- c("tidyverse","stargazer", "janitor", "here","readxl","foreign","xtable","gridExtra","grid","knitr","kableExtra","haven", "fuzzyjoin", "data.table","panelView", "visdat", "beepr", "lubridate", "readxl") # list packages needed
+have <- need %in% rownames(installed.packages()) # checks packages you have
+if(any(!have)) install.packages(need[!have]) # install missing packages
+invisible(lapply(need, library, character.only=T)) # load needed packages
 
-library(gridExtra)
-library(grid)
-library(here)
-library(tidyverse)
-library(sc)
+options(scipen = 999)
+
 ###1.2 Load functions ----------------------------------------------------
 
 # Function to read all 'data' containing files from a specific directory
@@ -30,23 +32,35 @@ library(sc)
 # Example usage
 
 # ###1.3 Load data --------------------------------------------------------
-order_by_year <- readRDS(here("results", "output","graph_order_by_year.rds" ))
-all_orders_tech<- read_csv(here( "data_proc", "all_orders_tech_level.csv")) %>% select(-'...1')
-all_cs_data<- readRDS(here("results", "output", "all_cs_data_graph.rds"))
+## 2.1 Setting up the directory -------------------------------------------------------
+## Setting up the directories for the data folders 
+data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+full_panel_file <- "full_panel"
+results_folder<-"/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/results/" 
+output_folder<- paste0(results_folder, "output")
+main_results<- paste0(output_folder, "main")
+het_results<- paste0(output_folder, "heterogeneity")
+mechanisms_results <- paste0(output_folder, "mechanisms")
+figures_folder <- paste0(results_folder, "figures/")
+
+# order_by_year <- readRDS(here("results", "output","graph_order_by_year.rds" ))
+# all_orders_tech<- read_csv(here( "data_proc", "all_orders_tech_level.csv")) %>% select(-'...1')
+# all_cs_data<- readRDS(here("results", "output", "all_cs_data_graph.rds"))
 
 
-# Path to the directory
-path <- here("results", "output")
+
 
 # Replace this with the actual path to your directory
 
 # List files that contain 'data' in their names
-data_files <- list.files(path, pattern = "dynamic_plot_data", full.names = TRUE)
-
+main_files <- list.files(main_results, pattern = "dynamic_plot_data", full.names = TRUE)
+het_files <- list.files(het_results, pattern = "dynamic_plot_data", full.names = TRUE)
+mechanisms_files<- list.files(mechanisms_results, pattern = "dynamic_plot_data", full.names = TRUE)
 # List files that contain 'data' in their names
 
 # Loop through each file to modify its content and save separately
-for(file in data_files) {
+for(file in main_files) {
   # Load the data
   data <- readRDS(file)
   
@@ -184,19 +198,20 @@ ggsave(here("results","figures","fig_1C.jpeg"), fig_1C, width = 10, height = 7)#
 
 # Create the data for all orders
 
-all_orders_data_log_patent_stock <- rbind(cs_all_results_log_patent_stock_nevertreated_log_age_fixed_assets_dynamic_plot_data_results,
-                                          cs_all_results_log_patent_stock_notyettreated_log_age_fixed_assets_dynamic_plot_data_results)
-all_orders_data_log_patent_stock<- all_orders_data_log_patent_stock %>% 
-  filter(year>-6)
+all_orders_data_log_applications <- rbind(cs_all_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
+                                          cs_all_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
 
-fig_2A<- ggplot(all_orders_data_log_patent_stock, aes(x = year, y = att, group = control, color = control)) +
+all_orders_data_log_applications<- all_orders_data_log_applications %>% 
+  filter(year>-6 & year <6)
+
+fig_2A<- ggplot(all_orders_data_log_applications, aes(x = year, y = att, group = control, color = control)) +
   geom_point(position = position_dodge(0.4)) +  # Apply dodging to points
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.4)) +  # Apply dodging to error bars
   geom_vline(aes(xintercept = 0), linetype = "dashed", color ="black" ) +
   geom_hline(aes(yintercept = 0), linetype = "dashed", color = "grey50") +
   labs(title = "",
        x = "Relative timing",
-       y = "Effect on (log) patent stock") +  
+       y = "Effect on (log) patent applications") +  
   scale_color_manual(values = c("red","darkcyan"), 
                      labels = c("Baseline", "Late treated")) +  
   theme(legend.position = "bottom",
@@ -213,17 +228,14 @@ fig_2A
 ### Figure 2B ----------------------------------------------------------------
 
 
-all_cs_ht_data<- rbind(cs_ht_resultslog_patent_stock_nevertreated_log_age_log_pre_turnover_fixed_assets_dynamic_plot_data_results,
-                       cs_ht_resultslog_patent_stock_notyettreated_log_age_log_pre_turnover_fixed_assets_dynamic_plot_data_results)
+all_cs_ht_data<- rbind(cs_ht_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
+                       cs_ht_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
 
 
-all_cs_ht_data_test<- rbind(cs_ht_resultslog_patent_stock_notyettreated_none_dynamic_plot_data_results,
-                            cs_ht_resultslog_patent_stock_notyettreated_log_age_fixed_assets_dynamic_plot_data_results)
+
 all_cs_ht_data<- all_cs_ht_data %>% 
-  filter(year>-6)
+  filter(year>-6 & year<6)
 
-all_cs_ht_data_test<- all_cs_ht_data_test %>% 
-  filter(year>-6)
 
 
 fig_2B<- ggplot(all_cs_ht_data, aes(x = year, y = att, group = control, color = control)) +
@@ -233,7 +245,7 @@ fig_2B<- ggplot(all_cs_ht_data, aes(x = year, y = att, group = control, color = 
   geom_hline(aes(yintercept = 0), linetype = "dashed", color = "grey50") +
   labs(title = "",
        x = "Relative timing",
-       y = "Effect on (log) patent stock") +  
+       y = "Effect on (log) patent applications") +  
   scale_color_manual(values = c("red","darkcyan"), 
                      labels = c("Baseline", "Late treated")) +  
   theme(legend.position = "bottom",
@@ -245,32 +257,15 @@ fig_2B<- ggplot(all_cs_ht_data, aes(x = year, y = att, group = control, color = 
 
 fig_2B
 
-fig_2test<- ggplot(all_cs_ht_data_test, aes(x = year, y = att, group = source, color = source)) +
-  geom_point(position = position_dodge(0.4)) +  # Apply dodging to points
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.4)) +  # Apply dodging to error bars
-  geom_vline(aes(xintercept = 0), linetype = "dashed", color ="black" ) +
-  geom_hline(aes(yintercept = 0), linetype = "dashed", color = "grey50") +
-  labs(title = "",
-       x = "Relative timing",
-       y = "Effect on (log) patent stock") +  
-  scale_color_manual(values = c("red","darkcyan"), 
-                     labels = c("Baseline", "Late treated")) +  
-  theme(legend.position = "bottom",
-        panel.background = element_rect(fill = "white"),
-        plot.background = element_rect(fill = "white"),
-        panel.grid.major = element_line(color = "grey90"),
-        panel.grid.minor = element_line(color = "grey95")) +
-  ylim(-0.5, 0.5)
 
-fig_2test
 
 ### Figure 2C ----------------------------------------------------------------
 
-all_cs_lt_data<- rbind(cs_lt_results_log_patent_stock_nevertreated_log_age_fixed_assets_dynamic_plot_data_results,
-      cs_lt_results_log_patent_stock_notyettreated_log_age_fixed_assets_dynamic_plot_data_results)
+all_cs_lt_data<- rbind(cs_lt_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
+                       cs_lt_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
 
 all_cs_lt_data<- all_cs_lt_data %>% 
-  filter(year>-6)
+  filter(year>-6 & year<6)
 
 
 
@@ -281,7 +276,7 @@ fig_2C <- ggplot(all_cs_lt_data, aes(x = year, y = att, group = control, color =
   geom_hline(aes(yintercept = 0), linetype = "dashed", color = "grey50") +
   labs(title = "",
        x = "Relative timing",
-       y = "Effect on (log) patent stock") +  
+       y = "Effect on (log) patent applications") +  
   scale_color_manual(values = c("red","darkcyan"), 
                      labels = c("Baseline", "Late treated")) +  
   theme(legend.position = "bottom",
@@ -301,35 +296,30 @@ g_legend <- function(a.gplot){
   legend <- tmp$grobs[[leg]]
   return(legend)
 }
-common_legend <- g_legend(fig_2B)
+common_legend <- g_legend(fig_2A)
 # Remove legends from individual plots and add titles
-fig_2A <- fig_2A + labs(title = "All orders") + guides(color=FALSE)
-fig_2B <- fig_2B + labs(title = "High-tech orders") + guides(color=FALSE)
-fig_2C <- fig_2C + labs(title = "Low-tech orders") + guides(color=FALSE)
 
 
+fig_2A <- fig_2A + labs(title = "All orders") + guides(color=FALSE)+ xlab(NULL) + ylab(NULL)
 fig_2B <- fig_2B + labs(title = "High-tech orders") + guides(color=FALSE) + xlab(NULL) + ylab(NULL)
 fig_2C <- fig_2C + labs(title = "Low-tech orders") + guides(color=FALSE) + xlab(NULL) + ylab(NULL)
 
 # Arrange the plots and add the labels
-fig_2<- grid.arrange(
+fig_2<- grid.arrange(fig_2A,
    fig_2B, fig_2C, 
-  ncol = 1, # Arrange in one column
+  ncol = 2, # Arrange in one column
   # Add the common x-axis label at the bottom plot
   bottom = textGrob("Relative timing", gp = gpar(fontface = "bold", cex = 1)),
   # Add the common y-axis label to the side of all plots
-  left = textGrob("Effect on (log) patent stock", rot = 90, gp = gpar(fontface = "bold", cex = 1))
+  left = textGrob("Effect on (log) patent applications", rot = 90, gp = gpar(fontface = "bold", cex = 1))
 )
 
 
-# Extract the legend from one of the plots (e.g., fig_3A)
 
-# Arrange the plots in a 2x2 grid
-plots_grob <- arrangeGrob(fig_2B, fig_2C, ncol = 1, nrow = 2)
 
 # Place the plots above the extracted legend
-fig_2<- grid.arrange(plots_grob, common_legend, nrow = 2, heights = c(10, 1))
-ggsave(here("results","figures","fig_2.jpeg"), fig_2, width = 10, height = 10)
+
+ggsave(paste0(figures_folder, "fig_2.jpeg"), fig_2, width = 10, height = 10)
 
 
 
@@ -344,6 +334,8 @@ ggsave(here("results","figures","fig_2.jpeg"), fig_2, width = 10, height = 10)
 ### Figure 3A ----------------------------------------------------------------
 all_cs_one_data<- rbind(cs_one_results_log_patent_stock_nevertreated_log_age_fixed_assets_dynamic_plot_data_results,
                          cs_one_results_log_patent_stock_notyettreated_log_age_fixed_assets_dynamic_plot_data_results)
+
+
 all_cs_one_data<- all_cs_one_data %>% 
   filter(year>-6)
 

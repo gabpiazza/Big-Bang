@@ -14,28 +14,29 @@
 ##   
 ##
 
-#1 Load libraries, functions and data  ----------------------------------------------------------
+## 1.1 Install & Load packages --------------------------------------------------------
 
-###1.1 Load libraries ----------------------------------------------------
+# some setup: a cheeky little bit of code to check and install packages
+need <- c(
+  "Matching", "panelView", "tjbal", "MatchIt", "parallel","WeightIt", "tidyverse", 
+  "rstatix", "bacondecomp", "ggpubr", "gsynth", "did", "modelsummary", 
+  "hrbrthemes", "tidyr", "viridis", "janitor", "tmap", "leaflet", "sf", 
+  "terra", "cobalt", "here", "dplyr", "spData", "rnaturalearth", 
+  "rnaturalearthdata", "readxl", "tabulator", "Hmisc", "skimr", 
+  "tjbal", "fuzzyjoin", "reshape2", "easycsv", "Synth", "plm", 
+  "progress", "lfe", "fixest", "did", "stringi", "SCtools", "tidysynth", 
+  "modelsummary", "panelView", "eeptools", "rdd", "haven", "sp", 
+  "spdep", "forcats", "tmap", "gridExtra", "xtable", "weights", 
+  "twang", "scales", "fixest", "beepr", "naniar", "stargazer", 
+  "foreign", "knitr", "kableExtra", "data.table", "visdat", "lubridate"
+) # list packages needed
+have <- need %in% rownames(installed.packages()) # checks packages you have
+if(any(!have)) install.packages(need[!have]) # install missing packages
+invisible(lapply(need, library, character.only=T)) # load needed packages
 
-library(visdat)
-library(haven)
-library(tidyverse)
-library(foreign)
-library(readr)
-library(lubridate)
-library(haven)
-library(data.table)
-library(readxl)
-library(janitor)
-library(readxl)
-library(here)
-library(stringdist)
-library(fuzzyjoin)
-library(beepr)
-library(xtable)
-
-###1.2 Load functions ----------------------------------------------------
+options(scipen = 999)
+## 1.2 Create functions ----------------------------------------------------
+`%notin%` <- Negate(`%in%`)
 
 
 
