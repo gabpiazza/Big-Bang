@@ -43,7 +43,7 @@ perform_analysis <- function(y_var, control_group_type, dataset, covariates = NU
   }
   
   # Expected column names
-  expected_columns <- c("bvd_id_numeric", "year", y_var, "first_order")
+  expected_columns <- c("bvd_id_numeric", "year", y_var, "first_order_2")
   
   # Check for missing columns
   missing_columns <- expected_columns[!expected_columns %in% colnames(data_filtered)]
@@ -104,7 +104,8 @@ run_all_analyses_multiple_combinations_parallel <- function(y_vars, dataset) {
   control_groups <- c('nevertreated', 'notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
+  all_covariates <- c("pre_log_fixed_assets")
+  # all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
   
   covariate_combinations <- list("none" = NULL)
   
@@ -168,8 +169,8 @@ run_all_analyses_multiple_combinations <- function(y_vars, dataset) {
   control_groups <- c('nevertreated', 'notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
-  
+  # all_covariates <- c("pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
+  all_covariates <- c("pre_log_fixed_assets")
   covariate_combinations <- list("none" = NULL)
   
   # Loop through all sizes of combinations
@@ -258,7 +259,7 @@ run_not_yet_analyses <- function(y_vars, dataset) {
   control_groups <- c('notyettreated')
   
   # Create all possible covariate combinations
-  all_covariates <- c( "pre_log_operating_revenue_turnover","pre_log_ebitda","pre_log_fixed_assets", "age")
+  all_covariates <- c( "pre_log_fixed_assets")
   
   covariate_combinations <- list("none" = NULL)
   
@@ -394,21 +395,58 @@ full_panel_ht <- full_panel %>% filter(first_order_tech==1)
 full_panel_lt<- full_panel %>% filter(first_order_tech==0)
 full_panel_one<- full_panel %>% filter(total_orders ==1)
 full_panel_multiple<- full_panel %>% filter(total_orders >1)
-full_panel_large_projects<- full_panel %>% filter(subproject_1_first_year %in% c("LHC", "HL"))
-full_panel_less_than_100k<- full_panel %>% filter(first_order_amount <=100000)
+full_panel_large_projects<- full_panel %>% filter(subproject_1_first_year %in% c("LHC"))
+full_panel_less_than_100k<- full_panel %>% filter(first_order_amount <=100000) %>% filter(supplier_status ==1)
 full_panel_greater_than_100k<- full_panel %>% filter(first_order_amount >100000)
 full_panel_SME<- full_panel %>% filter(SME_status ==1)
 full_panel_large_companies <- full_panel %>% filter(SME_status ==0)
 full_panel_start_ups<- full_panel %>% filter(age<=5)
 
 
+# Count of companies ------------------------------------------------------
 
-y_vars<- vars <- c( "probability_publications", "probability_applications", 
-                    "log_applications", "log_application_stock",
+number_full_panel<- full_panel %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="all")
+number_low_tech <-  full_panel_lt %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="low_tech")
+number_high_tech <- full_panel_ht %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="high_tech")
+number_less_than_100k<- full_panel_less_than_100k %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="less_than_100k")
+number_greater_than_100k<- full_panel_greater_than_100k %>%  group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="greater_than_100k")
+number_SME<- full_panel_SME %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="SME")
+number_large_companies<- full_panel_large_companies %>% group_by(supplier_status) %>% 
+  summarise(number_companies = n_distinct(bvd_id_number)) %>% mutate(category ="Large Companies")
+number_firms_category <- bind_rows(number_full_panel,
+                              number_low_tech,
+                              number_high_tech,
+                              number_less_than_100k,
+                              number_greater_than_100k,
+                              number_SME,
+                              number_large_companies)
+number_firms_category_wide<- number_firms_category %>% pivot_wider(
+  names_from = supplier_status, 
+  values_from = number_companies,
+  names_prefix = "status_"
+)
+# y_vars<- vars <- c( "probability_publications", "probability_applications", 
+#                     "log_applications", "log_application_stock",
+#                     "log_weighted_patent_apps",
+#                    "log_publications", "log_publication_stock")
+
+pivot_wider(
+  names_from = supplier_status, 
+  values_from = number_companies,
+  names_prefix = "status_"
+)
+
+y_vars<- vars <- c(  "log_applications", "log_application_stock",
                     "log_weighted_patent_apps",
-                   "log_publications", "log_publication_stock"
+                    "log_publications")
 
-                   )
+
 y_vars_mechanisms  <- c(
   "probability_WIPO_code_apps",
   "probability_collaborations_apps",
@@ -418,7 +456,7 @@ y_vars_mechanisms  <- c(
   "log_collaborations_apps",
   "log_multiple_patent_offices_apps")
  
-
+y_vars_log_patent_stock<- c("log_application_stock")
 
 
 
@@ -430,9 +468,9 @@ years_few_observations <- c(1995, 1996, 2008, 2020)
 
 ##3.1 All suppliers ------------------------------------------------------
 
-cs_all_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
+cs_all_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel)
 library(beepr)
-beep()
+beep(5)
 sim_ratios_all<- lapply(cs_all_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -446,9 +484,11 @@ sim_ratios_all_long <- gather(data_frame_sim_ratio_all_results, key = "variable"
 
 path_to_save <-paste0(main_results, "cs_all_")
 save_all_results(cs_all_results, path_to_save)
+beep(5)
 
 ## 3.2 High-tech suppliers ------------------------------------------------
-cs_ht_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_ht)
+cs_ht_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_ht)
+beep(5)
 sim_ratios_ht <- lapply(cs_ht_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -461,9 +501,10 @@ sim_ratios_ht_long <- gather(data_frame_sim_ratio_ht_results, key = "variable", 
 
 path_to_save <-paste0(main_results, "cs_ht_")
 save_all_results(cs_ht_results, path_to_save)
+beep(5)
 
 ## 3.3 Low-tech suppliers ------------------------------------------------
-cs_lt_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_lt)
+cs_lt_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_lt)
 sim_ratios_lt <- lapply(cs_lt_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -471,13 +512,16 @@ sim_ratios_lt <- lapply(cs_lt_results, function(x) {
     return(NULL)
   }
 })
+beep(5)
 data_frame_sim_ratio_lt_results<- as.data.frame(sim_ratios_lt)
 sim_ratios_lt_long <- gather(data_frame_sim_ratio_lt_results, key = "variable", value = "value")
 path_to_save <-paste0(main_results, "cs_lt_")
 save_all_results(cs_lt_results, path_to_save)
+beep(5)
 ## #3.4 One order -------------------------------------------------------------------
 
-cs_one_results <- run_not_yet_analyses(y_vars, full_panel_one)
+cs_one_results <- run_not_yet_analyses(y_vars_log_patent_stock, full_panel_one)
+beep(5)
 sim_ratios_one <- lapply(cs_one_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -492,7 +536,8 @@ save_all_results(cs_one_results, path_to_save)
 
 ## #3.4 Multiple orders -------------------------------------------------------------------
 
-cs_multiple_results <-run_not_yet_analyses(y_vars, full_panel_multiple)
+cs_multiple_results <-run_not_yet_analyses(y_vars_log_patent_stock, full_panel_multiple)
+beep(5)
 sim_ratios_multiple <- lapply(cs_multiple_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -506,7 +551,7 @@ path_to_save <-paste0(het_results, "cs_multiple_")
 save_all_results(cs_multiple_results, path_to_save)
 
 ## #3.5 Large Projects -------------------------------------------------------------------
-cs_large_projects_results <- run_not_yet_analyses(y_vars, full_panel_large_projects)
+cs_large_projects_results <- run_not_yet_analyses(y_vars_log_patent_stock, full_panel_large_projects)
 sim_ratios_large_projects <- lapply(cs_large_projects_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -514,12 +559,13 @@ sim_ratios_large_projects <- lapply(cs_large_projects_results, function(x) {
     return(NULL)
   }
 })
+beep(5)
 data_frame_sim_ratio_large_projects_results<- as.data.frame(sim_ratios_large_projects)
 sim_ratios_large_projects_long <- gather(data_frame_sim_ratio_large_projects_results, key = "variable", value = "value")
 path_to_save <-paste0(het_results, "cs_large_projects_")
 save_all_results(cs_large_projects_results, path_to_save)
 ## #3.6 Small orders -------------------------------------------------------------------
-cs_less_than_100k_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_less_than_100k)
+cs_less_than_100k_results <- run_not_yet_analyses(y_vars_log_patent_stock, full_panel_less_than_100k)
 sim_ratios_less_than_100k <- lapply(cs_less_than_100k_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -531,10 +577,10 @@ data_frame_sim_ratio_less_than_100k_results<- as.data.frame(sim_ratios_less_than
 sim_ratios_less_than_100k_long <- gather(data_frame_sim_ratio_less_than_100k_results, key = "variable", value = "value")
 path_to_save <-paste0(het_results, "cs_less_than_100k_projects_")
 save_all_results(cs_less_than_100k_results, path_to_save)
-
+beep(5)
 
 ## #3.7 Large orders -------------------------------------------------------------------
-cs_greater_than_100k_results <- run_not_yet_analyses(y_vars, full_panel_greater_than_100k)
+cs_greater_than_100k_results <- run_not_yet_analyses(y_vars_log_patent_stock, full_panel_greater_than_100k)
 sim_ratios_greater_than_100k <- lapply(cs_greater_than_100k_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)
@@ -542,13 +588,14 @@ sim_ratios_greater_than_100k <- lapply(cs_greater_than_100k_results, function(x)
     return(NULL)
   }
 })
+beep(5)
 data_frame_sim_ratio_greater_than_100k_results<- as.data.frame(sim_ratios_greater_than_100k)
 sim_ratios_greater_than_100k_long <- gather(data_frame_sim_ratio_greater_than_100k_results, key = "variable", value = "value")
 path_to_save <-paste0(het_results, "cs_greater_than_100k_projects_")
 save_all_results(cs_greater_than_100k_results, path_to_save)
 
 ## #3.8 SME -------------------------------------------------------------------
-cs_SME_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_SME)
+cs_SME_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_SME)
 beep(3)
 sim_ratios_SME <- lapply(cs_SME_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
@@ -562,7 +609,7 @@ sim_ratios_SME_long <- gather(data_frame_sim_ratio_SME_results, key = "variable"
 path_to_save <-paste0(het_results, "cs_SME_")
 save_all_results(cs_SME_results, path_to_save)
 ## #3.9 Large Companies -------------------------------------------------------------------
-cs_large_companies_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_large_companies)
+cs_large_companies_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_large_companies)
 beep(3)
 sim_ratios_large_companies <- lapply(cs_large_companies_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
@@ -577,7 +624,7 @@ path_to_save <-paste0(het_results, "cs_large_companies_")
 save_all_results(cs_large_companies_results, path_to_save)
 beep(3)
 ## #3.10 Start_ups -------------------------------------------------------------------
-cs_startups_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_start_ups)
+cs_startups_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_start_ups)
 sim_ratios_startups <- lapply(cs_startups_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)

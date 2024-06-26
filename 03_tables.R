@@ -48,6 +48,18 @@ options(scipen = 999)
 
 
 ### 1.3 Load data -------------------------------------------------------------
+## Setting up the directories for the data folders 
+data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_raw/"
+data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
+full_panel_file <- "full_panel"
+results_folder<-"/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/results/" 
+output_folder<- paste0(results_folder, "output")
+main_results<- paste0(output_folder, "main")
+het_results<- paste0(output_folder, "heterogeneity")
+mechanisms_results <- paste0(output_folder, "mechanisms")
+tables_folder <- paste0(results_folder, "tables/")
+
+
 folder_path <- here("results", "output")
 descriptive_statistics<- read_csv(here("results", "output", "descriptive_statistics_pot_supplier.csv")) %>% 
   select(-'...1') 
@@ -56,8 +68,8 @@ combined_table_3 <- read_csv(here("results", "output", "descriptive_table_3.csv"
 
 
 # Get a list of all .rds files in the folder
-rds_files <- list.files(path = folder_path, 
-                        pattern = "(treated_log_age_fixed_assets|none)_simple_results.*\\.rds$",
+rds_files <- list.files(path = output_folder, 
+                        pattern = "(treated_pre_log_fixed_assets|none)_results.*\\.rds$",
                         full.names = F)
 
 # Loop through the list of .rds files to read each one
@@ -142,7 +154,7 @@ generate_latex_table <- function(object_names, file_path, caption) {
   latex_code <- xtable::xtable(result_df, caption=caption, align = align, add.to.row = addtorow)
   
   # Save the LaTeX code to the specified file
-  xtable::print.xtable(latex_code, file=file_path, caption.placement="top", include.rownames=TRUE, booktabs=TRUE, hline.after=c(-1, 0))
+  xtable::print.xtable(latex_code, file=tables_folder, caption.placement="top", include.rownames=TRUE, booktabs=TRUE, hline.after=c(-1, 0))
 }
 
 # Usage:

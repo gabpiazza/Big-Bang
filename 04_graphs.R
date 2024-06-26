@@ -38,8 +38,8 @@ data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 full_panel_file <- "full_panel"
 results_folder<-"/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/results/" 
-output_folder<- paste0(results_folder, "output")
-main_results<- paste0(output_folder, "main")
+output_folder<- paste0(results_folder, "output/")
+main_results<- paste0(output_folder, "main/")
 het_results<- paste0(output_folder, "heterogeneity")
 mechanisms_results <- paste0(output_folder, "mechanisms")
 figures_folder <- paste0(results_folder, "figures/")
@@ -198,43 +198,46 @@ ggsave(here("results","figures","fig_1C.jpeg"), fig_1C, width = 10, height = 7)#
 
 # Create the data for all orders
 
-all_orders_data_log_applications <- rbind(cs_all_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
-                                          cs_all_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
-
-all_orders_data_log_applications<- all_orders_data_log_applications %>% 
+all_orders_data_log_application_stock<- rbind(cs_all_log_application_stock_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results, 
+                                              cs_all_log_application_stock_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
+all_orders_data_log_application_stock<- all_orders_data_log_application_stock %>% 
   filter(year>-6 & year <6)
 
-fig_2A<- ggplot(all_orders_data_log_applications, aes(x = year, y = att, group = control, color = control)) +
+
+
+
+fig_2A <- ggplot(all_orders_data_log_application_stock, aes(x = year, y = att, group = control, color = control)) +
   geom_point(position = position_dodge(0.4)) +  # Apply dodging to points
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.4)) +  # Apply dodging to error bars
-  geom_vline(aes(xintercept = 0), linetype = "dashed", color ="black" ) +
+  geom_vline(aes(xintercept = 0), linetype = "dashed", color ="black") +
   geom_hline(aes(yintercept = 0), linetype = "dashed", color = "grey50") +
   labs(title = "",
        x = "Relative timing",
-       y = "Effect on (log) patent applications") +  
+       y = "Effect on (log) patent stock") +
   scale_color_manual(values = c("red","darkcyan"), 
-                     labels = c("Baseline", "Late treated")) +  
+                     labels = c("Baseline", "Late treated")) +
   theme(legend.position = "bottom",
         panel.background = element_rect(fill = "white"),
         plot.background = element_rect(fill = "white"),
         panel.grid.major = element_line(color = "grey90"),
-        panel.grid.minor = element_line(color = "grey95")) +
-  ylim(-0.5, 0.5)
+        panel.grid.minor = element_line(color = "grey95"),
+        axis.title = element_text(size = 16, face = "bold"),  # Increase and bold axis titles
+        axis.text = element_text(size = 16),  # Increase axis text
+        legend.text = element_text(size = 14),  # Increase legend text
+        legend.title = element_text(size = 14, face = "bold")) +  # Increase and bold legend title
+  ylim(-0.5, 0.5) +
+  scale_x_continuous(breaks = seq(min(all_orders_data_log_application_stock$year), max(all_orders_data_log_application_stock$year), by = 2))  # Specify breaks every 2 years on x-axis
 
-fig_2A
 #ggsave(here("results","figures","fig_2.jpeg"), fig_2, width = 10, height = 7)
 
 
 ### Figure 2B ----------------------------------------------------------------
 
-
-all_cs_ht_data<- rbind(cs_ht_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
-                       cs_ht_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
-
-
+all_cs_ht_data <- rbind(cs_ht_log_application_stock_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
+                                          cs_ht_log_application_stock_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
 
 all_cs_ht_data<- all_cs_ht_data %>% 
-  filter(year>-6 & year<6)
+  filter(year>-6 & year <6)
 
 
 
@@ -253,7 +256,8 @@ fig_2B<- ggplot(all_cs_ht_data, aes(x = year, y = att, group = control, color = 
         plot.background = element_rect(fill = "white"),
         panel.grid.major = element_line(color = "grey90"),
         panel.grid.minor = element_line(color = "grey95")) +
-  ylim(-0.5, 0.5)
+  ylim(-0.5, 0.5)+
+  scale_x_continuous(breaks = seq(min(all_orders_data_log_applications$year), max(all_orders_data_log_applications$year), by = 2))  # Specify breaks every 2 years on x-axis
 
 fig_2B
 
@@ -261,8 +265,8 @@ fig_2B
 
 ### Figure 2C ----------------------------------------------------------------
 
-all_cs_lt_data<- rbind(cs_lt_log_applications_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
-                       cs_lt_log_applications_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
+all_cs_lt_data<- rbind(cs_lt_log_application_stock_nevertreated_pre_log_fixed_assets_dynamic_plot_data_results,
+                       cs_lt_log_application_stock_notyettreated_pre_log_fixed_assets_dynamic_plot_data_results)
 
 all_cs_lt_data<- all_cs_lt_data %>% 
   filter(year>-6 & year<6)
@@ -311,15 +315,15 @@ fig_2<- grid.arrange(fig_2A,
   # Add the common x-axis label at the bottom plot
   bottom = textGrob("Relative timing", gp = gpar(fontface = "bold", cex = 1)),
   # Add the common y-axis label to the side of all plots
-  left = textGrob("Effect on (log) patent applications", rot = 90, gp = gpar(fontface = "bold", cex = 1))
+  left = textGrob("Effect on (log) patent stock", rot = 90, gp = gpar(fontface = "bold", cex = 1))
 )
 
 
-
+fig_2A
 
 # Place the plots above the extracted legend
 
-ggsave(paste0(figures_folder, "fig_2.jpeg"), fig_2, width = 10, height = 10)
+ggsave(paste0(figures_folder, "fig_2.jpeg"), fig_2A, width = 13, height = 10)
 
 
 
