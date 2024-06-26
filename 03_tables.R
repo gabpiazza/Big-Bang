@@ -53,11 +53,12 @@ data_raw_dir <- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/dat
 data_proc_dir<- "/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/data_proc/"
 full_panel_file <- "full_panel"
 results_folder<-"/Users/gabrielepiazza/Dropbox/PhD/CERN_procurement/Analysis/results/" 
-output_folder<- paste0(results_folder, "output")
-main_results<- paste0(output_folder, "main")
+output_folder<- paste0(results_folder, "output/")
+main_results<- paste0(output_folder, "main/")
 het_results<- paste0(output_folder, "heterogeneity")
 mechanisms_results <- paste0(output_folder, "mechanisms")
 tables_folder <- paste0(results_folder, "tables/")
+main_files <- list.files(main_results, pattern = "pre_log_fixed_assets_simple_results", full.names = TRUE)
 
 
 folder_path <- here("results", "output")
@@ -68,17 +69,29 @@ combined_table_3 <- read_csv(here("results", "output", "descriptive_table_3.csv"
 
 
 # Get a list of all .rds files in the folder
-rds_files <- list.files(path = output_folder, 
-                        pattern = "(treated_pre_log_fixed_assets|none)_results.*\\.rds$",
+file_pattern_app_prob <- "(log_application_stock|probability_applications).*treated_pre_log_fixed_assets_simple_results\\.rds$"
+file_pattern_mechanisms <- "treated_pre_log_fixed_assets_simple_results\\.rds$"
+file_pattern_robustness <- "(log_publication|log_weighted_patent_apps|log_applications).*treated_pre_log_fixed_assets_simple_results\\.rds$"
+rds_files_main_results <- list.files(path = main_results, 
+                        pattern = file_pattern_app_prob,
                         full.names = F)
+rds_files_het_results<- list.files(path = het_results, 
+                                   pattern = file_pattern_app_prob,
+                                   full.names = F)
+rds_file_mechanisms_results <- list.files(path = mechanisms_results, 
+                                          pattern= file_pattern_mechanisms, 
+                                          full.names = F)
+rds_files_robustness_results <- list.files(path = main_results, 
+                                     pattern = file_pattern_robustness,
+                                     full.names = F)
 
 # Loop through the list of .rds files to read each one
-for (file in rds_files) {
+for (file in rds_files_main_results) {
   # Create an object name based on the file name
   obj_name <- tools::file_path_sans_ext(file)
   
   # Construct the full path of the file
-  full_path <- file.path(folder_path, file)
+  full_path <- file.path(main_results, file)
   
   # Load the .rds file into an object
   obj <- readRDS(full_path)
@@ -86,6 +99,50 @@ for (file in rds_files) {
   # Assign the object to a variable with the same name as the original file (without extension)
   assign(obj_name, obj, envir = .GlobalEnv)
 }
+
+for (file in rds_files_het_results) {
+  # Create an object name based on the file name
+  obj_name <- tools::file_path_sans_ext(file)
+  
+  # Construct the full path of the file
+  full_path <- file.path(het_results, file)
+  
+  # Load the .rds file into an object
+  obj <- readRDS(full_path)
+  
+  # Assign the object to a variable with the same name as the original file (without extension)
+  assign(obj_name, obj, envir = .GlobalEnv)
+}
+
+for (file in rds_file_mechanisms_results) {
+  # Create an object name based on the file name
+  obj_name <- tools::file_path_sans_ext(file)
+  
+  # Construct the full path of the file
+  full_path <- file.path(mechanisms_results, file)
+  
+  # Load the .rds file into an object
+  obj <- readRDS(full_path)
+  
+  # Assign the object to a variable with the same name as the original file (without extension)
+  assign(obj_name, obj, envir = .GlobalEnv)
+}
+
+
+for (file in rds_files_robustness_results) {
+  # Create an object name based on the file name
+  obj_name <- tools::file_path_sans_ext(file)
+  
+  # Construct the full path of the file
+  full_path <- file.path(main_results, file)
+  
+  # Load the .rds file into an object
+  obj <- readRDS(full_path)
+  
+  # Assign the object to a variable with the same name as the original file (without extension)
+  assign(obj_name, obj, envir = .GlobalEnv)
+}
+
 
 generate_latex_table <- function(object_names, file_path, caption) {
   # Check if xtable is installed and load it
@@ -154,7 +211,7 @@ generate_latex_table <- function(object_names, file_path, caption) {
   latex_code <- xtable::xtable(result_df, caption=caption, align = align, add.to.row = addtorow)
   
   # Save the LaTeX code to the specified file
-  xtable::print.xtable(latex_code, file=tables_folder, caption.placement="top", include.rownames=TRUE, booktabs=TRUE, hline.after=c(-1, 0))
+  xtable::print.xtable(latex_code, file=file_path, caption.placement="top", include.rownames=TRUE, booktabs=TRUE, hline.after=c(-1, 0))
 }
 
 # Usage:
@@ -266,24 +323,30 @@ write.table(latex_output, file_path, row.names = FALSE)
 # List of object names
 #### * Table 4A --------------------------------------------------------------
 
-object_names_table_4A <- c("cs_all_results_log_patent_stock_nevertreated_log_age_fixed_assets_simple_results","cs_all_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                                "cs_all_results_patented_nevertreated_log_age_fixed_assets_simple_results","cs_all_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_4A, here("results", "tables", "table_4A.tex"), "Summary of ATT - All firms and orders")
+object_names_table_4A <- c("cs_all_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",         
+ "cs_all_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",      
+  "cs_all_probability_applications_nevertreated_pre_log_fixed_assets_simple_results", 
+  "cs_all_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_4A, paste0(tables_folder, "table_4A.tex"), "Summary of ATT - All firms and orders")
 
 
 
 #### * Table 4B --------------------------------------------------------------
 # List of object names
-object_names_table_4B <- c("cs_ht_resultslog_patent_stock_nevertreated_log_age_fixed_assets_simple_results","cs_ht_resultslog_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_ht_resultspatented_nevertreated_log_age_fixed_assets_simple_results","cs_ht_resultspatented_notyettreated_log_age_fixed_assets_simple_results")
+object_names_table_4B <- c("cs_ht_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",         
+                           "cs_ht_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",      
+                           "cs_ht_probability_applications_nevertreated_pre_log_fixed_assets_simple_results", 
+                           "cs_ht_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
 
-generate_latex_table(object_names_table_4B, here("results","tables", "table_4B.tex"), "Summary of ATT - high-tech orders")
+generate_latex_table(object_names_table_4B, paste0(tables_folder, "table_4B.tex"), "Summary of ATT - high-tech orders")
 
 #### * Table 4C --------------------------------------------------------------
 # List of object names
-object_names_table_4C<-c("cs_lt_results_log_patent_stock_nevertreated_none_simple_results","cs_lt_results_log_patent_stock_notyettreated_none_simple_results",
-                         "cs_lt_results_patented_nevertreated_log_age_fixed_assets_simple_results","cs_lt_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_4C, here("results", "tables", "table_4C.tex"),"Summary of ATT - low-tech orders")
+object_names_table_4C<-c("cs_lt_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",         
+                         "cs_lt_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",      
+                         "cs_lt_probability_applications_nevertreated_pre_log_fixed_assets_simple_results", 
+                         "cs_lt_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_4C, paste0(tables_folder, "table_4C.tex"),"Summary of ATT - low-tech orders")
 
 
 
@@ -299,91 +362,80 @@ generate_latex_table(object_names_table_4C, here("results", "tables", "table_4C.
 
 #### * Table 5A --------------------------------------------------------------
 # List of object names
-object_names_table_5A<-c("cs_one_results_log_patent_stock_nevertreated_log_age_fixed_assets_simple_results","cs_one_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                         "cs_one_results_patented_nevertreated_log_age_fixed_assets_simple_results","cs_one_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_5A, here("results", "tables", "table_5A.tex"),"Summary of ATT - suppliers receiving one order")
+object_names_table_5A<-c( "cs_one_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results", "cs_one_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_5A, paste0(tables_folder, "table_5A.tex"),"Summary of ATT - suppliers receiving one order")
 
 #### * Table 5B --------------------------------------------------------------
 # List of object names
-object_names_table_5B<-c("cs_multiple_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                         "cs_multiple_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_5B, here("results", "tables", "table_5B.tex"),"Summary of ATT - suppliers receiving multiple orders")
+object_names_table_5B<-c("cs_multiple_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results", "cs_multiple_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_5B, paste0(tables_folder, "table_5B.tex"),"Summary of ATT - suppliers receiving multiple orders")
 
 
 
 #### * Table 5C --------------------------------------------------------------
 # List of object names 
-object_names_table_5C<- c("cs_pre_2008_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results", "cs_pre_2008_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_5C, here("results", "tables", "table_5C.tex"),"Summary of ATT - during LHC")
+object_names_table_5C<- c("cs_large_projects_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results", "cs_large_projects_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table_2elements(object_names_table_5C, paste0(tables_folder,  "table_5C.tex"),"Summary of ATT - LHC and HL")
 
 
 #### * Table 5D--------------------------------------------------------------
 # List of object names 
-object_names_table_5D<- c("cs_post_2008_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                          "cs_post_2008_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_5D, here("results", "tables", "table_5D.tex"),"Summary of ATT - after LHC")
+object_names_table_5D<- c("cs_greater_than_100k_projects_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results", "cs_greater_than_100k_projects_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table_2elements(object_names_table_5D,  paste0(tables_folder, "table_5D.tex"),"Summary of ATT - >100k")
 
 
 #### * Table 5E--------------------------------------------------------------
 # List of object names 
-object_names_table_5E<- c("cs_100k_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                          "cs_100k_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_5E, here("results", "tables", "table_5E.tex"),"Summary of ATT - 100k")
+object_names_table_5E<-c("cs_less_than_100k_projects_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",
+                         "cs_less_than_100k_projects_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",
+                         "cs_less_than_100k_projects_probability_applications_nevertreated_pre_log_fixed_assets_simple_results",
+                         "cs_less_than_100k_projects_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_5E, paste0(tables_folder, "table_5E.tex"),"Summary of ATT < 100k")
 
 
-#### * Table 5F--------------------------------------------------------------
+#### * Table 6A--------------------------------------------------------------
 # List of object names 
-object_names_table_5F<- c("cs_more_100k_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                         "cs_more_100k_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_5F, here("results", "tables", "table_5F.tex"),"Summary of ATT - >100k")
+object_names_table_6A<- c("cs_SME_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_SME_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",
+                          "cs_SME_probability_applications_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_SME_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_6A, paste0(tables_folder, "table_6A.tex"),"Summary of ATT - SMEs")
+
+#### * Table 6B--------------------------------------------------------------
+# List of object names 
+object_names_table_6B<- c("cs_large_companies_log_application_stock_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_large_companies_log_application_stock_notyettreated_pre_log_fixed_assets_simple_results",
+                          "cs_large_companies_probability_applications_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_large_companies_probability_applications_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_6B, paste0(tables_folder, "table_6B.tex"),"Summary of ATT - Large companies")
 
 
 
-#### Table 6 ------------------------------------------------------------
+#### Table 7 Mechanisms ------------------------------------------------------------
 
-#### * Table 6A --------------------------------------------------------------
+#### * Table 7A --------------------------------------------------------------
+object_names_table_7A<- c("cs_all_log_collaborations_apps_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_log_collaborations_apps_notyettreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_probability_collaborations_apps_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_probability_collaborations_apps_notyettreated_pre_log_fixed_assets_simple_results")
+generate_latex_table(object_names_table_7A, paste0(tables_folder, "table_7A.tex"),"Summary of ATT - Collaborations")
 
-object_names_table_6A <- c("cs_large_results_log_patent_stock_nevertreated_log_age_fixed_assets_simple_results", "cs_large_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_large_results_patented_nevertreated_log_age_fixed_assets_simple_results", "cs_large_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_6A, here("results", "tables", "table_6A.tex"),"Summary of ATT - Large Companies")
+#### * Table 7B --------------------------------------------------------------
 
-#### *Table 6B  ----------------------------------------------------------------
-
-object_names_table_6B <- c("cs_SME_results_log_patent_stock_nevertreated_log_age_fixed_assets_simple_results", "cs_SME_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_SME_results_patented_nevertreated_log_age_fixed_assets_simple_results", "cs_SME_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table(object_names_table_6B, here("results", "tables", "table_6B.tex"),"Summary of ATT - SMEs")
-
-#### *Table 6C  ----------------------------------------------------------------
-object_names_table_6C <- c("cs_start_up_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_start_up_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6C, here("results", "tables", "table_6C.tex"),"Summary of ATT - start_ups")
+object_names_table_7B<- c("cs_all_log_multiple_inventors_apps_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_log_multiple_inventors_apps_notyettreated_pre_log_fixed_assets_simple_results")
+  
+generate_latex_table_2elements(object_names_table_7B, paste0(tables_folder, "table_7B.tex"),"Summary of ATT - Multiple Inventors Patents")
 
 
-####*Table 6D  ----------------------------------------------------------------
-object_names_table_6D <- c("cs_incumbent_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_incumbent_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6D, here("results", "tables", "table_6D.tex"),"Summary of ATT - incumbent")
+# Table 8 Robustness ------------------------------------------------------
 
+#### * Table 8A --------------------------------------------------------------
+object_names_table_8A<- c("cs_all_log_applications_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_log_applications_notyettreated_pre_log_fixed_assets_simple_results","cs_all_log_publications_nevertreated_pre_log_fixed_assets_simple_results",
+                          "cs_all_log_publications_notyettreated_pre_log_fixed_assets_simple_results")
 
-####*Table 6E  ----------------------------------------------------------------
-object_names_table_6E <- c("cs_ES_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                          "cs_ES_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6E, here("results", "tables", "table_6E.tex"),"Summary of ATT - Spain")
-
-####*Table 6F  ----------------------------------------------------------------
-object_names_table_6F <- c("cs_FR_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                           "cs_FR_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6F, here("results", "tables", "table_6F.tex"),"Summary of ATT - France")
-
-####*Table 6G  ----------------------------------------------------------------
-object_names_table_6G <-c("cs_IT_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                          "cs_IT_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6G, here("results", "tables", "table_6G.tex"),"Summary of ATT - Italy")
-
-####*Table 6H  ----------------------------------------------------------------
-object_names_table_6H <- c("cs_UK_results_log_patent_stock_notyettreated_log_age_fixed_assets_simple_results",
-                             "cs_UK_results_patented_notyettreated_log_age_fixed_assets_simple_results")
-generate_latex_table_2elements(object_names_table_6H, here("results", "tables", "table_6H.tex"),"Summary of ATT - UK")
+generate_latex_table(object_names_table_8A, paste0(tables_folder, "table_8A.tex"),"Summary of ATT - Other outcome variables")
 
 
 # #### Table 9  ------------------------------------------------------------
