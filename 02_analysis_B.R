@@ -445,7 +445,7 @@ pivot_wider(
 y_vars<- vars <- c(  "log_applications", "log_application_stock",
                     "log_weighted_patent_apps",
                     "log_publications")
-
+y_vars<-c("asinh_application_stock")
 
 y_vars_mechanisms  <- c(
   "probability_WIPO_code_apps",
@@ -468,7 +468,7 @@ years_few_observations <- c(1995, 1996, 2008, 2020)
 
 ##3.1 All suppliers ------------------------------------------------------
 
-cs_all_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel)
+cs_all_results <- run_all_analyses_multiple_combinations(y_vars, full_panel)
 library(beepr)
 beep(5)
 sim_ratios_all<- lapply(cs_all_results, function(x) {
@@ -487,7 +487,7 @@ save_all_results(cs_all_results, path_to_save)
 beep(5)
 
 ## 3.2 High-tech suppliers ------------------------------------------------
-cs_ht_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_ht)
+cs_ht_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_ht)
 beep(5)
 sim_ratios_ht <- lapply(cs_ht_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
@@ -504,7 +504,7 @@ save_all_results(cs_ht_results, path_to_save)
 beep(5)
 
 ## 3.3 Low-tech suppliers ------------------------------------------------
-cs_lt_results <- run_all_analyses_multiple_combinations(y_vars_log_patent_stock, full_panel_lt)
+cs_lt_results <- run_all_analyses_multiple_combinations(y_vars, full_panel_lt)
 sim_ratios_lt <- lapply(cs_lt_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)

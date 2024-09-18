@@ -322,6 +322,22 @@ order_first_order_amount <- order_first_order_amount %>%
     TRUE ~ NA_character_  # Handle any other unexpected cases
   ))
 
+post_log_patent_stock <- full_panel %>% filter(supplier_status == 1 & treat ==1) %>% 
+  select(bvd_id_number, log_application_stock, year)
+  
+
+aes(x = log_application_stock)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  ggtitle("Density Plot of Log Application Stock") +
+  labs(x = "Log Application Stock", y = "Density") +
+  theme_minimal()
+
+ggplot(post_log_patent_stock, aes(x = log_application_stock)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  ggtitle("Density Plot of Log Application Stock") +
+  labs(x = "Log Application Stock", y = "Density") +
+  theme_minimal()
+
 # Creating the density plot
 # Adjusted density plot with explicit group mapping
 density_plot_by technology <- ggplot(order_first_order_amount, aes(x = log_total_orders, fill = tech_category, color = tech_category, group = tech_category)) +
@@ -353,6 +369,9 @@ average_order <- order_first_order_amount %>%
   )
 
   
+
+
+
 
   scatter_plot_first_order_amount <-ggplot(order_first_order_amount, aes(x = log_first_order_amount, y = log_total_orders_amount)) +
   geom_point() +geom_smooth(method = "lm", se = FALSE, color = "blue") +
