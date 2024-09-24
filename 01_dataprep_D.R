@@ -266,7 +266,7 @@ few_years <- grouped_data %>% filter(count_treat_zero==1 & count_treat_one==1) %
 
 full_panel<- full_panel %>% filter(bvd_id_number %notin% c(no_post_treatment, few_years))
 
-
+# I am trimming the data, removing those 
 top_1_percent_threshold_applications <- quantile(full_panel$number_applications, 0.99)
 top_1_percent_threshold_turnover <- quantile(full_panel$pre_log_operating_revenue_turnover, 0.99)
 
