@@ -172,15 +172,15 @@ full_panel <- full_panel %>%
   )
 
 
-full_panel<- full_panel %>%
+full_panel <- full_panel %>%
   mutate(
     age = case_when(
       supplier_status == 1 ~ first_order - incorporation_year_age,
       supplier_status == 0 ~ registration_year - incorporation_year_age,
       TRUE ~ NA_real_   # default case to handle any other unexpected values
-    )
+    ),
+    age = ifelse(age < 0, 0, age)  # Replace negative ages with 0
   )
-
 no_age_companies <- full_panel %>% filter(is.na(age)) %>% 
   dplyr::group_by(bvd_id_number) %>% distinct() %>% pull(bvd_id_number) # this is empty 
 

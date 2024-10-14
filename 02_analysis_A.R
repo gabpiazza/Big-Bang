@@ -36,6 +36,10 @@ full_panel_file <- "full_panel"
 #   pull(bvd_id_number)
 # full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies)
 full_panel<- readRDS(paste0(data_proc_dir, full_panel_file))
+
+full_panel_clean <- full_panel %>%
+  filter(!is.na(pre_log_fixed_assets) & !is.na(age) & !is.na(country) & !is.na(nace_rev_2_main_section)) %>% 
+  filter(first_order %notin% c(1995,1996, 2008))
 fr_it_es_uk_orders<- readRDS(paste0(data_proc_dir,"fr_it_es_uk_orders"))
 # ## 3. Descriptive -------------------------------------------------------
 
@@ -85,21 +89,24 @@ writeLines(latex_code, "table_1.tex")
 
 %
 
-# Balance table -----------------------------------------------------------
+## 3.1 Balance table -----------------------------------------------------------
 
 # Assuming your data frame is called full_panel
-mean_results <- full_panel %>%
+mean_results <- full_panel_patenting %>%
   group_by(supplier_status) %>%
   summarise(
     mean_pre_log_fixed_assets = mean(pre_log_fixed_assets, na.rm = TRUE),
     mean_pre_log_operating_revenue_turnover = mean(pre_log_operating_revenue_turnover, na.rm = TRUE),
-    mean_pre_log_application_stock = mean(pre_log_application_stock, na.rm = TRUE)
+    mean_pre_log_application_stock = mean(pre_log_application_stock, na.rm = TRUE),
+    mean_pre_age = mean(age, na.rm = TRUE)
   )
 
 # Perform t-tests
-t_test_fixed_assets <- t.test(pre_log_fixed_assets ~ supplier_status, data = full_panel)
-t_test_operating_revenue <- t.test(pre_log_operating_revenue_turnover ~ supplier_status, data = full_panel)
-t_test_patent_stock <- t.test(pre_log_application_stock ~ supplier_status, data = full_panel)
+t_test_fixed_assets <- t.test(pre_log_fixed_assets ~ supplier_status, data = full_panel_patenting)
+t_test_operating_revenue <- t.test(pre_log_operating_revenue_turnover ~ supplier_status, data = full_panel_patenting)
+t_test_patent_stock <- t.test(pre_log_application_stock ~ supplier_status, data = full_panel_patenting)
+t_test_age <- t.test(age ~ supplier_status, data = full_panel_patenting)
+
 
 
 # Extract means from the summary for both groups (assuming binary groups: 0 and 1)
@@ -119,18 +126,20 @@ add_significance <- function(p_value) {
 }
 # Create a combined table with p-values and means
 combined_results <- data.frame(
-  Variable = c("Pre-Log Fixed Assets", "Pre-Log Operating Revenue Turnover", "Pre-Log Application Stock"),
-  Mean_Group_0 = c(means_0$mean_pre_log_fixed_assets, means_0$mean_pre_log_operating_revenue_turnover, means_0$mean_pre_log_application_stock),
-  Mean_Group_1 = c(means_1$mean_pre_log_fixed_assets, means_1$mean_pre_log_operating_revenue_turnover, means_1$mean_pre_log_application_stock),
+  Variable = c("Pre-Log Fixed Assets", "Pre-Log Operating Revenue Turnover", "Pre-Log Application Stock", "Age"),
+  Mean_Group_0 = c(means_0$mean_pre_log_fixed_assets, means_0$mean_pre_log_operating_revenue_turnover, means_0$mean_pre_log_application_stock, means_0$mean_pre_age),
+  Mean_Group_1 = c(means_1$mean_pre_log_fixed_assets, means_1$mean_pre_log_operating_revenue_turnover, means_1$mean_pre_log_application_stock, means_1$mean_pre_age),
   P_Value = c(
     round(t_test_fixed_assets$p.value, 2),
     round(t_test_operating_revenue$p.value, 2),
-    round(t_test_patent_stock$p.value, 2)
+    round(t_test_patent_stock$p.value, 2),
+    round(t_test_age$p.value, 2)
   ),
   Significance = c(
     add_significance(t_test_fixed_assets$p.value),
     add_significance(t_test_operating_revenue$p.value),
-    add_significance(t_test_patent_stock$p.value)
+    add_significance(t_test_patent_stock$p.value),
+    add_significance(t_test_age$p.value)
   )
 )
 
@@ -147,7 +156,7 @@ latex_table <- xtable(combined_results, caption = "Means and P-Values from T-Tes
 print(latex_table, type = "latex", include.rownames = FALSE, caption.placement = "top")
 
 
-# Treatment panel ---------------------------------------------------------
+##3.2 Treatment panel ---------------------------------------------------------
 
 
 treatment_panel <- full_panel %>% filter(supplier_status ==1)%>% 
@@ -219,7 +228,7 @@ print(combined_results_treatment)
 latex_table_treatment <- xtable(combined_results_treatment, caption = "Means and P-Values from T-Tests by Treatment Timing", label = "table:means_pvalues_treatment_timing")
 print(latex_table_treatment, type = "latex", include.rownames = FALSE, caption.placement = "top")
 
-##3.1. Just Retour Orders ------------------------------------------------------
+##3.3. Just Retour Orders ------------------------------------------------------
 #Calculate the orders by country 
 
 orders_by_country_tech<- fr_it_es_uk_orders %>% 
@@ -263,7 +272,7 @@ scatter_plot_orders <- ggplot(just_retour_panel, aes(x = coefficient_return_supp
   theme_minimal()
 
 
-# Larger contracts --------------------------------------------------------
+##3.4  Larger contracts --------------------------------------------------------
 
 
 orders_by_country_tech_large<- fr_it_es_uk_orders %>% 
@@ -308,7 +317,7 @@ scatter_plot_orders <- ggplot(just_retour_panel_large, aes(x = coefficient_retur
   theme_minimal()
 
 
-# amount total orders -----------------------------------------------------
+## 3.5 Amount total orders -----------------------------------------------------
 
 order_first_order_amount<- full_panel %>% filter(supplier_status ==1) %>% 
   select(bvd_id_number, first_order_amount, total_orders, total_orders_amount, first_order_tech, SME_status) %>% distinct() %>% 
@@ -403,3 +412,13 @@ latex_table <- xtable(industry_summary, caption = "Percentage of Firms by Suppli
 # Printing the table with the small text size command
 print(latex_table, type = "latex", include.rownames = FALSE,
       sanitize.text.function = function(x) {paste("\\scriptsize", x)})  # Applies \scriptsize to all text elementsplies \small to all text elements
+
+
+
+## 3.6 Patent data ------------------------------------------------------
+average_patent_data_NACE <- full_panel_clean %>% group_by (nace_rev_2_main_section) %>% summarise(average_patent_applications = mean(number_applications),
+                                                                                                  total_applications = sum(number_applications))
+
+no_patent_sectors <- average_patent_data_NACE %>% filter(total_applications==0) %>% pull(nace_rev_2_main_section)
+
+full_panel_patenting <- full_panel_clean %>% filter(nace_rev_2_main_section %notin% no_patent_sectors)
