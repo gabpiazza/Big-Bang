@@ -41,6 +41,8 @@ full_panel_clean <- full_panel %>%
   filter(!is.na(pre_log_fixed_assets) & !is.na(age) & !is.na(country) & !is.na(nace_rev_2_main_section)) %>% 
   filter(first_order %notin% c(1995,1996, 2008))
 fr_it_es_uk_orders<- readRDS(paste0(data_proc_dir,"fr_it_es_uk_orders"))
+
+
 # ## 3. Descriptive -------------------------------------------------------
 
 number_cohorts <- full_panel %>%select(bvd_id_number, first_order) %>%
@@ -422,3 +424,4 @@ average_patent_data_NACE <- full_panel_clean %>% group_by (nace_rev_2_main_secti
 no_patent_sectors <- average_patent_data_NACE %>% filter(total_applications==0) %>% pull(nace_rev_2_main_section)
 
 full_panel_patenting <- full_panel_clean %>% filter(nace_rev_2_main_section %notin% no_patent_sectors)
+

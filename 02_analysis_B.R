@@ -738,7 +738,7 @@ sim_ratios_financially_constrained_long <- gather(data_frame_sim_ratio_financial
 
 
 ## #3.15 Financially unconstrained firms  -------------------------------------------------------------------
-cs_financially_unconstrained_results<-  run_not_yet_analyses(y_vars, full_panel_financially_unconstrained_firms)
+cs_financially_unconstrained_results<-  run_all_analyses_multiple_combinations(y_vars, full_panel_financially_unconstrained_firms)
 sim_ratios_financially_unconstrained<- lapply(cs_financially_unconstrained_results, function(x) {
   if ("sim_ratio" %in% names(x)) {
     return(x$sim_ratio)

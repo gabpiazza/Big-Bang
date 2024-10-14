@@ -287,3 +287,8 @@ full_panel<-full_panel %>% filter(bvd_id_number %notin% top_1_percent_companies_
 check_ht<- full_panel %>% filter(is.na(max_tech))%>% select(bvd_id_number, year, first_order,max_tech, supplier_status, first_order_tech)
 
 saveRDS(full_panel, paste0(data_proc_dir, "full_panel.rds"))
+
+
+
+
+
